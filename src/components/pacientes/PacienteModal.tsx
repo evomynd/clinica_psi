@@ -202,6 +202,9 @@ export function PacienteModal({ open, paciente, onClose, onSuccess }: PacienteMo
         consentimentoTCLE:  paciente?.consentimentoTCLE ?? {
           assinado: false, dataHora: null, ipAddress: null, versao: "1.0",
         },
+        tcleUrl:                  paciente?.tcleUrl                  ?? null,
+        tcleToken:                paciente?.tcleToken                ?? null,
+        tcleTokenExpiraEm:        paciente?.tcleTokenExpiraEm        ?? null,
         contratoAssinado:         paciente?.contratoAssinado         ?? false,
         contratoUrl:              paciente?.contratoUrl              ?? null,
         contratoDataAssinatura:   paciente?.contratoDataAssinatura   ?? null,

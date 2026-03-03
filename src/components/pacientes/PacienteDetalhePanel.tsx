@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import {
   X, User, Phone, Mail, MapPin, Calendar, Edit2,
-  FileText, Plus, Trash2, Loader2, Lock, ChevronDown, ChevronUp,
+  FileText, Plus, Trash2, Loader2, Lock, ChevronDown, ChevronUp, Copy, ExternalLink,
 } from "lucide-react";
 import {
   buscarObservacoesDoPaciente,
@@ -16,11 +16,13 @@ import { encryptText, decryptText } from "@/lib/encryption";
 import { useAuth } from "@/lib/hooks/useAuth";
 import { formatDate, calcularIdade, maskPhone, cn } from "@/lib/utils";
 import type { PacienteFirestore, ObservacaoPacienteFirestore } from "@/types/firestore";
+import { toast } from "sonner";
 
 interface PacienteDetalhePanelProps {
   paciente:   PacienteFirestore;
   onClose:    () => void;
   onEditClick:() => void;
+  onPacienteUpdated?: () => Promise<void> | void;
 }
 
 // ─── Sub: Observações ─────────────────────────────────────────────────────────
@@ -236,9 +238,50 @@ function ObservacoesSection({ paciente }: { paciente: PacienteFirestore }) {
 }
 
 // ─── Painel Principal ─────────────────────────────────────────────────────────
-export function PacienteDetalhePanel({ paciente, onClose, onEditClick }: PacienteDetalhePanelProps) {
+export function PacienteDetalhePanel({ paciente, onClose, onEditClick, onPacienteUpdated }: PacienteDetalhePanelProps) {
   const nascimento = paciente.dataNascimento?.toDate?.() ?? null;
   const idade      = nascimento ? calcularIdade(nascimento) : null;
+  const [gerandoTCLE, setGerandoTCLE] = useState(false);
+  const [linkTCLE, setLinkTCLE] = useState<string | null>(paciente.tcleUrl ?? null);
+
+  useEffect(() => {
+    setLinkTCLE(paciente.tcleUrl ?? null);
+  }, [paciente.id, paciente.tcleUrl]);
+
+  async function gerarLinkTCLE() {
+    if (!paciente.id) return;
+    setGerandoTCLE(true);
+    try {
+      const response = await fetch("/api/tcle/gerar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pacienteId: paciente.id }),
+      });
+
+      const body = await response.json();
+
+      if (!response.ok) {
+        toast.error(body?.error ?? "Não foi possível gerar o TCLE.");
+        return;
+      }
+
+      const novoLink = body?.linkAssinatura as string;
+      setLinkTCLE(novoLink);
+      await navigator.clipboard.writeText(novoLink);
+      toast.success("Link do TCLE gerado e copiado.");
+      await onPacienteUpdated?.();
+    } catch {
+      toast.error("Erro ao gerar link do TCLE.");
+    } finally {
+      setGerandoTCLE(false);
+    }
+  }
+
+  async function copiarLinkTCLE() {
+    if (!linkTCLE) return;
+    await navigator.clipboard.writeText(linkTCLE);
+    toast.success("Link do TCLE copiado.");
+  }
 
   return (
     <div className="w-80 flex-shrink-0 border-l border-slate-100 bg-white flex flex-col h-full overflow-hidden">
@@ -330,6 +373,43 @@ export function PacienteDetalhePanel({ paciente, onClose, onEditClick }: Pacient
                 TCLE: {paciente.consentimentoTCLE?.assinado ? "Assinado" : "Pendente"}
               </span>
             </div>
+
+            {!paciente.consentimentoTCLE?.assinado && (
+              <div className="flex flex-wrap gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={gerarLinkTCLE}
+                  disabled={gerandoTCLE}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-primary-50 text-primary-700 text-xs font-semibold hover:bg-primary-100 disabled:opacity-60"
+                >
+                  {gerandoTCLE ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileText className="w-3.5 h-3.5" />}
+                  Gerar link TCLE
+                </button>
+
+                {linkTCLE && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={copiarLinkTCLE}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-100 text-slate-700 text-xs font-medium hover:bg-slate-200"
+                    >
+                      <Copy className="w-3.5 h-3.5" />
+                      Copiar link
+                    </button>
+                    <a
+                      href={linkTCLE}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-100 text-slate-700 text-xs font-medium hover:bg-slate-200"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                      Abrir
+                    </a>
+                  </>
+                )}
+              </div>
+            )}
+
             <div className="flex items-center gap-2 text-sm">
               <FileText className={cn("w-4 h-4 flex-shrink-0", paciente.contratoAssinado ? "text-green-500" : "text-amber-400")} />
               <span className={paciente.contratoAssinado ? "text-green-700" : "text-amber-600"}>

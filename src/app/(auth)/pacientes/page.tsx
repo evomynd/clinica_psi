@@ -56,6 +56,16 @@ export default function PacientesPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
+  useEffect(() => {
+    if (!selecionado?.id) return;
+    const atualizado = pacientes.find((p) => p.id === selecionado.id);
+    if (!atualizado) {
+      setSelecionado(null);
+      return;
+    }
+    setSelecionado(atualizado);
+  }, [pacientes, selecionado?.id]);
+
   // ─── Filtragem ──────────────────────────────────────────────────────────────
   const filtrados = useMemo(() => {
     let lista = pacientes;
@@ -198,6 +208,7 @@ export default function PacientesPage() {
           paciente={selecionado}
           onClose={() => setSelecionado(null)}
           onEditClick={() => abrirEdicao(selecionado)}
+          onPacienteUpdated={carregar}
         />
       )}
 

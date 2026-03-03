@@ -112,6 +112,9 @@ export interface PacienteFirestore {
 
   // Status legal/LGPD
   consentimentoTCLE: ConsentimentoTCLE;
+  tcleUrl: string | null;
+  tcleToken: string | null;
+  tcleTokenExpiraEm: Timestamp | null;
   contratoAssinado: boolean;
   contratoUrl: string | null;
   contratoDataAssinatura: Timestamp | null;
