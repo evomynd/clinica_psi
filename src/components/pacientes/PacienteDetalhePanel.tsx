@@ -355,8 +355,23 @@ export function PacienteDetalhePanel({ paciente, onClose, onEditClick, onPacient
 
   async function confirmarDelecao() {
     if (!paciente.id) return;
-    if (!downloadsTCLE || !downloadsContrato || !downloadsObservacoes) {
-      toast.error("Você precisa baixar todos os arquivos antes de deletar o paciente.");
+
+    // Validar apenas os downloads obrigatórios (documentos que existem)
+    const temTCLE = paciente.consentimentoTCLE?.assinado && linkTCLE;
+    const temContrato = paciente.contratoAssinado && linkContrato;
+    
+    if (temTCLE && !downloadsTCLE) {
+      toast.error("Você precisa baixar o TCLE antes de deletar o paciente.");
+      return;
+    }
+    
+    if (temContrato && !downloadsContrato) {
+      toast.error("Você precisa baixar o Contrato antes de deletar o paciente.");
+      return;
+    }
+    
+    if (!downloadsObservacoes) {
+      toast.error("Você precisa baixar as Observações antes de deletar o paciente.");
       return;
     }
 
@@ -364,10 +379,12 @@ export function PacienteDetalhePanel({ paciente, onClose, onEditClick, onPacient
     try {
       await deletarPaciente(paciente.id);
       toast.success("Paciente deletado permanentemente.");
+      setModalDelete(false);
       onClose();
       await onPacienteUpdated?.();
-    } catch {
-      toast.error("Erro ao deletar paciente.");
+    } catch (error) {
+      console.error("Erro ao deletar paciente:", error);
+      toast.error(`Erro ao deletar paciente: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
     } finally {
       setDeletando(false);
     }
@@ -378,9 +395,14 @@ export function PacienteDetalhePanel({ paciente, onClose, onEditClick, onPacient
       toast.error("Você só pode deletar pacientes inativos.");
       return;
     }
+    
+    // Verifica se há documentos para baixar
+    const temTCLE = paciente.consentimentoTCLE?.assinado && linkTCLE;
+    const temContrato = paciente.contratoAssinado && linkContrato;
+    
     setModalDelete(true);
-    setDownloadsTCLE(false);
-    setDownloadsContrato(false);
+    setDownloadsTCLE(!temTCLE); // Se não tem TCLE, marca como "baixado"
+    setDownloadsContrato(!temContrato); // Se não tem contrato, marca como "baixado"
     setDownloadsObservacoes(false);
   }
 
@@ -621,22 +643,22 @@ export function PacienteDetalhePanel({ paciente, onClose, onEditClick, onPacient
 
             <div className="px-6 py-5 space-y-4">
               <p className="text-sm text-slate-600">
-                Esta ação é <strong>irreversível</strong>. Você deve baixar todos os documentos antes de prosseguir.
+                Esta ação é <strong>irreversível</strong>. Você deve baixar todos os documentos disponíveis antes de prosseguir.
               </p>
 
               <div className="space-y-2">
                 <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Downloads Obrigatórios</p>
                 
-                <label className="flex items-center gap-2 p-3 border border-slate-200 rounded-lg cursor-pointer hover:bg-slate-50">
-                  <input
-                    type="checkbox"
-                    checked={downloadsTCLE}
-                    onChange={(e) => setDownloadsTCLE(e.target.checked)}
-                    className="flex-shrink-0"
-                  />
-                  <div className="flex-1">
-                    <p className="text-sm font-medium text-slate-700">TCLE Assinado</p>
-                    {linkTCLE && (
+                {paciente.consentimentoTCLE?.assinado && linkTCLE && (
+                  <label className="flex items-center gap-2 p-3 border border-slate-200 rounded-lg cursor-pointer hover:bg-slate-50">
+                    <input
+                      type="checkbox"
+                      checked={downloadsTCLE}
+                      onChange={(e) => setDownloadsTCLE(e.target.checked)}
+                      className="flex-shrink-0"
+                    />
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-slate-700">TCLE Assinado</p>
                       <a
                         href={linkTCLE}
                         target="_blank"
@@ -646,20 +668,20 @@ export function PacienteDetalhePanel({ paciente, onClose, onEditClick, onPacient
                       >
                         Abrir para baixar
                       </a>
-                    )}
-                  </div>
-                </label>
+                    </div>
+                  </label>
+                )}
 
-                <label className="flex items-center gap-2 p-3 border border-slate-200 rounded-lg cursor-pointer hover:bg-slate-50">
-                  <input
-                    type="checkbox"
-                    checked={downloadsContrato}
-                    onChange={(e) => setDownloadsContrato(e.target.checked)}
-                    className="flex-shrink-0"
-                  />
-                  <div className="flex-1">
-                    <p className="text-sm font-medium text-slate-700">Contrato Assinado</p>
-                    {linkContrato && (
+                {paciente.contratoAssinado && linkContrato && (
+                  <label className="flex items-center gap-2 p-3 border border-slate-200 rounded-lg cursor-pointer hover:bg-slate-50">
+                    <input
+                      type="checkbox"
+                      checked={downloadsContrato}
+                      onChange={(e) => setDownloadsContrato(e.target.checked)}
+                      className="flex-shrink-0"
+                    />
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-slate-700">Contrato Assinado</p>
                       <a
                         href={linkContrato}
                         target="_blank"
@@ -669,9 +691,9 @@ export function PacienteDetalhePanel({ paciente, onClose, onEditClick, onPacient
                       >
                         Abrir para baixar
                       </a>
-                    )}
-                  </div>
-                </label>
+                    </div>
+                  </label>
+                )}
 
                 <label className="flex items-center gap-2 p-3 border border-slate-200 rounded-lg cursor-pointer hover:bg-slate-50">
                   <input
@@ -681,7 +703,7 @@ export function PacienteDetalhePanel({ paciente, onClose, onEditClick, onPacient
                     className="flex-shrink-0"
                   />
                   <div className="flex-1">
-                    <p className="text-sm font-medium text-slate-700">Observações</p>
+                    <p className="text-sm font-medium text-slate-700">Observações (se houver)</p>
                     <button
                       type="button"
                       onClick={baixarObservacoes}
