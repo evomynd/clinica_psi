@@ -1,0 +1,182 @@
+@import "tailwindcss";
+
+/* ─── TailwindCSS v4: Design Tokens (@theme gera as classes utilitárias) ──── */
+@theme {
+  /* Cores primárias — Verde-azul saúde mental */
+  --color-primary-50:  #edf7f6;
+  --color-primary-100: #d1eeec;
+  --color-primary-200: #a6dcd9;
+  --color-primary-300: #74c5c0;
+  --color-primary-400: #45aba5;
+  --color-primary-500: #2d9e97;
+  --color-primary-600: #247d77;
+  --color-primary-700: #1e6560;
+  --color-primary-800: #1a5250;
+  --color-primary-900: #163f3e;
+  --color-primary-950: #0a2524;
+
+  /* Cores secundárias — Azul suave */
+  --color-secondary-50:  #eff6ff;
+  --color-secondary-100: #dbeafe;
+  --color-secondary-200: #bfdbfe;
+  --color-secondary-300: #93c5fd;
+  --color-secondary-400: #60a5fa;
+  --color-secondary-500: #4a8fe0;
+  --color-secondary-600: #2563eb;
+  --color-secondary-700: #1d4ed8;
+  --color-secondary-800: #1e40af;
+  --color-secondary-900: #1e3a8a;
+
+  /* Tons de apoio */
+  --color-lavender-100: #ede9fe;
+  --color-lavender-200: #ddd6fe;
+  --color-lavender-300: #c4b5fd;
+  --color-lavender-400: #a78bfa;
+  --color-lavender-500: #8b5cf6;
+
+  --color-peach-100: #ffedd5;
+  --color-peach-200: #fed7aa;
+  --color-peach-300: #fdba74;
+  --color-peach-400: #fb923c;
+
+  /* Semânticos */
+  --color-success: #22c55e;
+  --color-warning: #f59e0b;
+  --color-danger:  #ef4444;
+  --color-info:    #3b82f6;
+
+  /* Superfícies */
+  --color-surface:      #f8fffe;
+  --color-surface-card: #ffffff;
+  --color-surface-muted:#f1f5f4;
+
+  /* Tipografia */
+  --font-sans:    "Inter", system-ui, sans-serif;
+  --font-heading: "Plus Jakarta Sans", "Inter", sans-serif;
+
+  /* Sombras */
+  --shadow-card:  0 1px 3px 0 rgb(45 158 151 / .08), 0 1px 2px -1px rgb(45 158 151 / .06);
+  --shadow-hover: 0 4px 20px 0 rgb(45 158 151 / .15), 0 2px 8px -2px rgb(45 158 151 / .10);
+  --shadow-modal: 0 20px 60px -10px rgb(0 0 0 / .18);
+}
+
+/* ─── Variáveis CSS para uso direto no CSS/layout ────────────────────────── */
+:root {
+  --color-primary:     #2d9e97;
+  --color-secondary:   #4a8fe0;
+  --sidebar-width:     260px;
+  --sidebar-collapsed: 72px;
+  --navbar-height:     64px;
+}
+
+
+/* ─── Reset e Base ───────────────────────────────────────────────────────── */
+*,
+*::before,
+*::after { box-sizing: border-box; }
+
+html {
+  scroll-behavior: smooth;
+  text-size-adjust: 100%;
+}
+
+body {
+  font-family: var(--font-sans);
+  background-color: var(--color-surface);
+  color: #1a2e2d;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  min-height: 100dvh;
+}
+
+/* ─── Scrollbar ──────────────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background-color: rgba(45,158,151,.35);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover { background-color: rgba(45,158,151,.6); }
+
+/* ─── Tipografia ─────────────────────────────────────────────────────────── */
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-heading);
+  font-weight: 600;
+  line-height: 1.25;
+  color: #0f2020;
+}
+
+/* ─── Focus acessível ─────────────────────────────────────────────────────── */
+:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* ─── Keyframes ───────────────────────────────────────────────────────────── */
+@keyframes fadeIn  { from { opacity:0 } to { opacity:1 } }
+@keyframes slideUp {
+  from { opacity:0; transform:translateY(10px); }
+  to   { opacity:1; transform:translateY(0);    }
+}
+@keyframes shimmer {
+  from { background-position: 200% 0; }
+  to   { background-position: -200% 0; }
+}
+
+/* ─── Utilitários ─────────────────────────────────────────────────────────── */
+.glass {
+  background: rgba(255,255,255,.8);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255,255,255,.3);
+}
+
+.card-glow {
+  box-shadow: 0 1px 3px rgba(45,158,151,.08), 0 1px 2px -1px rgba(45,158,151,.06);
+  transition: box-shadow 0.2s ease;
+}
+.card-glow:hover {
+  box-shadow: 0 4px 20px rgba(45,158,151,.15), 0 2px 8px -2px rgba(45,158,151,.10);
+}
+
+/* ─── Layout App ──────────────────────────────────────────────────────────── */
+.app-shell {
+  display: flex;
+  min-height: 100dvh;
+}
+.main-content {
+  flex: 1;
+  min-width: 0;
+  padding-top: var(--navbar-height);
+  margin-left: var(--sidebar-width);
+  transition: margin-left 0.25s ease;
+}
+.main-content.sidebar-collapsed { margin-left: var(--sidebar-collapsed); }
+
+@media (max-width: 768px) {
+  .main-content { margin-left: 0 !important; }
+}
+
+/* ─── Criptografia visual (prontuário) ───────────────────────────────────── */
+.encrypt-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  color: #16a34a;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 9999px;
+  padding: 2px 8px;
+}
+
+/* ─── Skeleton loading ────────────────────────────────────────────────────── */
+.skeleton {
+  background: linear-gradient(90deg, #e2e8f0 25%, #f1f5f9 50%, #e2e8f0 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 6px;
+}
+

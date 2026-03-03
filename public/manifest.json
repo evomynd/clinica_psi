@@ -1,0 +1,44 @@
+{
+  "name": "Clínica Psi – Telepsicologia",
+  "short_name": "ClinicaPsi",
+  "description": "Plataforma de gestão e telepsicologia para psicólogos e clínicas",
+  "start_url": "/dashboard",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#f8fffe",
+  "theme_color": "#2d9e97",
+  "lang": "pt-BR",
+  "categories": ["health", "medical", "productivity"],
+  "icons": [
+    {
+      "src": "/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Agenda de Hoje",
+      "url": "/agenda",
+      "description": "Ver agendamentos do dia",
+      "icons": [{ "src": "/icons/icon.svg", "sizes": "any" }]
+    },
+    {
+      "name": "Novo Paciente",
+      "url": "/pacientes?action=novo",
+      "description": "Cadastrar novo paciente",
+      "icons": [{ "src": "/icons/icon.svg", "sizes": "any" }]
+    }
+  ],
+  "screenshots": [],
+  "related_applications": [],
+  "prefer_related_applications": false
+}

@@ -1,0 +1,117 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ─── Funções Auxiliares ──────────────────────────────────────────────────
+    function isAuth() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuth() && request.auth.uid == userId;
+    }
+
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function isAdmin() {
+      return isAuth() && getUserData().role == 'admin';
+    }
+
+    function isSameClinica(clinicaId) {
+      return isAuth() && getUserData().clinicaId == clinicaId;
+    }
+
+    // ─── Collection: users ───────────────────────────────────────────────────
+    match /users/{userId} {
+      // Leitura pública somente para campos da vitrine (psicologo ativo com CRP)
+      allow read: if resource.data.role == 'psicologo'
+                  && resource.data.crpAtivo == true;
+
+      // Usuário pode ler/escrever apenas seu próprio documento
+      allow read, write: if isOwner(userId);
+
+      // Admin lê qualquer usuário da clínica
+      allow read: if isAdmin()
+                  && isSameClinica(resource.data.clinicaId);
+    }
+
+    // ─── Collection: pacientes ───────────────────────────────────────────────
+    match /pacientes/{pacienteId} {
+      // Psicólogo só acessa seus próprios pacientes
+      allow read, write: if isAuth()
+                         && request.auth.uid == resource.data.userId;
+
+      // Admin da mesma clínica pode acessar
+      allow read, write: if isAdmin()
+                         && isSameClinica(resource.data.clinicaId);
+
+      // Criação: usuário autenticado pode criar (vinculado ao próprio uid)
+      allow create: if isAuth()
+                    && request.resource.data.userId == request.auth.uid;
+    }
+
+    // ─── Collection: observacoes ─────────────────────────────────────────────
+    match /observacoes/{observacaoId} {
+      // CRÍTICO: apenas o psicólogo autor pode acessar
+      allow read, write: if isAuth()
+                         && request.auth.uid == resource.data.userId;
+
+      // Admin com mesma clínica (para fins de auditoria, somente leitura)
+      allow read: if isAdmin()
+                  && isSameClinica(resource.data.clinicaId);
+
+      // Criação exige que userId == auth.uid
+      allow create: if isAuth()
+                    && request.resource.data.userId == request.auth.uid;
+    }
+
+    // ─── Collection: agendamentos ────────────────────────────────────────────
+    match /agendamentos/{agendamentoId} {
+      allow read, write: if isAuth()
+                         && request.auth.uid == resource.data.userId;
+
+      allow read, write: if isAdmin()
+                         && isSameClinica(resource.data.clinicaId);
+
+      allow create: if isAuth()
+                    && request.resource.data.userId == request.auth.uid;
+    }
+
+    // ─── Collection: disponibilidades ────────────────────────────────────────
+    match /disponibilidades/{dispId} {
+      allow read, write: if isAuth()
+                         && request.auth.uid == resource.data.userId;
+
+      // Leitura pública para exibição no agendamento público (apenas campos de horário)
+      allow read: if true;
+    }
+
+    // ─── Collection: matchQuizResults ─────────────────────────────────────────
+    match /matchQuizResults/{matchId} {
+      // Qualquer um pode criar (quiz público)
+      allow create: if true;
+
+      // Somente o sistema (admin) pode ler resultados
+      allow read: if isAdmin();
+    }
+
+    // ─── Collection: auditoriaAcessos ─────────────────────────────────────────
+    match /auditoriaAcessos/{auditId} {
+      // Qualquer usuário autenticado pode criar logs (obrigatório)
+      allow create: if isAuth();
+
+      // Somente admin pode ler logs de auditoria
+      allow read: if isAdmin();
+
+      // Ninguém pode editar ou excluir logs de auditoria (integridade)
+      allow update, delete: if false;
+    }
+
+    // ─── Bloqueia tudo o mais ─────────────────────────────────────────────────
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

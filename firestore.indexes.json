@@ -1,0 +1,63 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "agendamentos",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "userId",  "order": "ASCENDING" },
+        { "fieldPath": "dataHora", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "agendamentos",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "clinicaId", "order": "ASCENDING" },
+        { "fieldPath": "dataHora",  "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "observacoes",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "pacienteId",     "order": "ASCENDING" },
+        { "fieldPath": "dataObservacao", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "pacientes",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "userId",        "order": "ASCENDING" },
+        { "fieldPath": "nomeCompleto",  "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "pacientes",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "userId", "order": "ASCENDING" },
+        { "fieldPath": "ativo",  "order": "ASCENDING" },
+        { "fieldPath": "nomeCompleto", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "auditoriaAcessos",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "clinicaId",  "order": "ASCENDING" },
+        { "fieldPath": "timestamp",  "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "disponibilidades",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "userId",     "order": "ASCENDING" },
+        { "fieldPath": "ativo",      "order": "ASCENDING" },
+        { "fieldPath": "diaSemana",  "order": "ASCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}
