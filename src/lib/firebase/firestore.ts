@@ -27,6 +27,7 @@ import type {
   DisponibilidadeFirestore,
   AuditoriaAcessoFirestore,
   TarefaFirestore,
+  Pagamento,
 } from "@/types/firestore";
 
 // ─── Auditoria LGPD ──────────────────────────────────────────────────────────
