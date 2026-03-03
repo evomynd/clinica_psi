@@ -19,7 +19,7 @@ const perfilSchema = z.object({
   crp:             z.string().optional(),
   crpUF:           z.string().length(2, "UF inválida").optional(),
   miniCV:          z.string().max(500, "Máximo 500 caracteres").optional(),
-  abordagem:       z.array(z.string()),
+  abordagem:       z.array(z.enum(["TCC", "Psicanálise", "Humanista", "Gestalt", "DBT", "EMDR", "Sistêmica", "ACT", "Integrativa", "Outra"])),
   especialidades:  z.array(z.string()),
 });
 
