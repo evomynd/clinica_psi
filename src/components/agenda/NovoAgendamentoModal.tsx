@@ -23,7 +23,7 @@ const schema = z.object({
   tipoAtendimento: z.enum(["sessao_semanal", "sessao_emergencial", "avaliacao", "introducao_15min"]),
   valor:           z.number().min(0),
   observacoes:     z.string().optional(),
-  recorrenciaSemanal: z.boolean().default(false),
+  recorrenciaSemanal: z.boolean(),
   dataFimRecorrencia: z.string().optional(),
 }).superRefine((data, ctx) => {
   if (!data.recorrenciaSemanal) return;
