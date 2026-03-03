@@ -116,7 +116,7 @@ export function Navbar({ collapsed, onMobileToggle }: NavbarProps) {
 
         {/* Avatar do usuário */}
         <Link
-          href="/configuracoes/perfil"
+          href="/configuracoes"
           className="flex items-center gap-2.5 pl-2 pr-3 py-1 rounded-xl hover:bg-slate-100 transition-colors"
           aria-label="Ir para o perfil"
         >
