@@ -59,12 +59,14 @@ export async function atualizarPerfil(
     | "displayName"
     | "crp"
     | "crpUF"
+    | "cidade"
     | "crpAtivo"
     | "miniCV"
     | "abordagem"
     | "especialidades"
     | "valorSessao"
     | "duracaoSessao"
+    | "politicaCancelamento"
     | "fusoHorario"
     | "notificacaoWhatsapp"
     | "notificacaoEmail"
@@ -148,6 +150,12 @@ export async function togglePacienteAtivo(id: string, ativo: boolean): Promise<v
     updatedAt: serverTimestamp(),
   });
 }
+
+export async function deletarPaciente(id: string): Promise<void> {
+  await deleteDoc(doc(db, COLLECTIONS.PACIENTES, id));
+}
+
+export const buscarPaciente = buscarPacientePorId;
 
 // ─── Agendamentos ─────────────────────────────────────────────────────────────
 // Nota: Queries usam only where(userId) para evitar índice composto.

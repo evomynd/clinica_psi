@@ -51,12 +51,14 @@ export interface UserFirestore {
   // Dados profissionais
   crp: string | null;
   crpUF: string | null;
+  cidade: string | null;
   crpAtivo: boolean;
   miniCV: string | null;
   abordagem: AbordagemTerapeutica[];
   especialidades: string[];
   valorSessao: number | null;
   duracaoSessao: number;       // em minutos, padrão 50
+  politicaCancelamento: "24h" | "48h"; // Antecedência para cancelamento
 
   // Configurações
   fusoHorario: string;
@@ -117,7 +119,16 @@ export interface PacienteFirestore {
   tcleTokenExpiraEm: Timestamp | null;
   contratoAssinado: boolean;
   contratoUrl: string | null;
+  contratoToken: string | null;
+  contratoTokenExpiraEm: Timestamp | null;
   contratoDataAssinatura: Timestamp | null;
+
+  // Dados de atendimento (padrões personalizados por paciente)
+  duracaoSessaoPadrao: number;  // minutos
+  valorSessaoPadrao: number | null;
+  formaPagamentoPadrao: "pix" | "cartao" | "dinheiro" | "transferencia" | null;
+  modalidadePadrao: "presencial" | "online" | null;
+  frequenciaPadrao: "semanal" | "quinzenal" | null;
 
   // Metadados
   ativo: boolean;

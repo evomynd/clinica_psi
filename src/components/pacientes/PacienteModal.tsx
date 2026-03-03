@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { X, User, MapPin, Loader2, AlertCircle, Phone } from "lucide-react";
+import { X, User, MapPin, Loader2, AlertCircle, Phone, Briefcase } from "lucide-react";
 import { Timestamp } from "firebase/firestore";
 import { criarPaciente, atualizarPaciente } from "@/lib/firebase/firestore";
 import { hashCPF } from "@/lib/encryption";
@@ -32,6 +32,12 @@ const schema = z.object({
   emergenciaNome:     z.string().optional(),
   emergenciaTelefone: z.string().optional(),
   emergenciaRelacao:  z.string().optional(),
+  // Dados de atendimento
+  duracaoSessaoPadrao: z.number().min(15).max(180),
+  valorSessaoPadrao: z.number().min(0).nullable().optional(),
+  formaPagamentoPadrao: z.enum(["pix", "cartao", "dinheiro", "transferencia"]).nullable().optional(),
+  modalidadePadrao: z.enum(["presencial", "online"]).nullable().optional(),
+  frequenciaPadrao: z.enum(["semanal", "quinzenal"]).nullable().optional(),
 }).superRefine((data, ctx) => {
   const temAlgumCampoEmergencia =
     !!data.emergenciaNome?.trim() ||
@@ -68,7 +74,7 @@ interface PacienteModalProps {
   onSuccess?: (pacienteId: string, nomePaciente?: string) => void;
 }
 
-type Tab = "dados" | "endereco" | "emergencia";
+type Tab = "dados" | "endereco" | "atendimento" | "emergencia";
 
 const ESTADOS_BR = [
   "AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS",
@@ -82,7 +88,7 @@ export function PacienteModal({ open, paciente, onClose, onSuccess }: PacienteMo
   const [tab,     setTab]     = useState<Tab>("dados");
   const [loading, setLoading] = useState(false);
   const [submitLiberado, setSubmitLiberado] = useState(true);
-  const ordemTabs: Tab[] = ["dados", "endereco", "emergencia"];
+  const ordemTabs: Tab[] = ["dados", "atendimento", "endereco"];
 
   const isEdit = !!paciente?.id;
 
@@ -111,6 +117,11 @@ export function PacienteModal({ open, paciente, onClose, onSuccess }: PacienteMo
       emergenciaNome:     "",
       emergenciaTelefone: "",
       emergenciaRelacao:  "",
+      duracaoSessaoPadrao: userProfile?.duracaoSessao ?? 50,
+      valorSessaoPadrao: userProfile?.valorSessao ?? 0,
+      formaPagamentoPadrao: null,
+      modalidadePadrao: null,
+      frequenciaPadrao: null,
     },
   });
 
@@ -137,14 +148,19 @@ export function PacienteModal({ open, paciente, onClose, onSuccess }: PacienteMo
         emergenciaNome:     contatoEmergencia?.nome     ?? "",
         emergenciaTelefone: contatoEmergencia?.telefone ?? "",
         emergenciaRelacao:  contatoEmergencia?.relacao  ?? "",
+        duracaoSessaoPadrao: paciente.duracaoSessaoPadrao ?? userProfile?.duracaoSessao ?? 50,
+        valorSessaoPadrao: paciente.valorSessaoPadrao ?? userProfile?.valorSessao ?? 0,
+        formaPagamentoPadrao: paciente.formaPagamentoPadrao ?? null,
+        modalidadePadrao: paciente.modalidadePadrao ?? null,
+        frequenciaPadrao: paciente.frequenciaPadrao ?? null,
       });
     } else if (open) {
       reset();
     }
-  }, [open, paciente, reset]);
+  }, [open, paciente, reset, userProfile]);
 
   useEffect(() => {
-    if (tab !== "emergencia") {
+    if (tab !== "endereco") {
       setSubmitLiberado(true);
       return;
     }
@@ -207,7 +223,14 @@ export function PacienteModal({ open, paciente, onClose, onSuccess }: PacienteMo
         tcleTokenExpiraEm:        paciente?.tcleTokenExpiraEm        ?? null,
         contratoAssinado:         paciente?.contratoAssinado         ?? false,
         contratoUrl:              paciente?.contratoUrl              ?? null,
+        contratoToken:            paciente?.contratoToken            ?? null,
+        contratoTokenExpiraEm:    paciente?.contratoTokenExpiraEm    ?? null,
         contratoDataAssinatura:   paciente?.contratoDataAssinatura   ?? null,
+        duracaoSessaoPadrao:      data.duracaoSessaoPadrao,
+        valorSessaoPadrao:        data.valorSessaoPadrao ?? null,
+        formaPagamentoPadrao:     data.formaPagamentoPadrao ?? null,
+        modalidadePadrao:         data.modalidadePadrao ?? null,
+        frequenciaPadrao:         data.frequenciaPadrao ?? null,
         ativo:             paciente?.ativo ?? true,
         observacoesInternas: paciente?.observacoesInternas ?? null,
       };
@@ -260,7 +283,7 @@ export function PacienteModal({ open, paciente, onClose, onSuccess }: PacienteMo
 
         {/* Tabs */}
         <div className="flex border-b border-slate-100 px-6">
-          {(["dados", "endereco", "emergencia"] as Tab[]).map((t) => (
+          {(["dados", "atendimento", "endereco"] as Tab[]).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
@@ -272,8 +295,8 @@ export function PacienteModal({ open, paciente, onClose, onSuccess }: PacienteMo
               )}
             >
               {t === "dados"    ? <><User    className="w-3.5 h-3.5" /> Dados Pessoais</> : null}
+              {t === "atendimento" ? <><Briefcase className="w-3.5 h-3.5" /> Atendimento</> : null}
               {t === "endereco" ? <><MapPin  className="w-3.5 h-3.5" /> Endereço</>       : null}
-              {t === "emergencia" ? <><Phone className="w-3.5 h-3.5" /> Contato de Emergência</> : null}
             </button>
           ))}
         </div>
@@ -341,6 +364,156 @@ export function PacienteModal({ open, paciente, onClose, onSuccess }: PacienteMo
                     CPF já cadastrado (criptografado). Deixe vazio para manter.
                   </p>
                 )}
+
+                {/* Contato de Emergência */}
+                <div className="border-t border-slate-100 pt-4 mt-2">
+                  <h3 className="text-sm font-medium text-slate-700 mb-3 flex items-center gap-2">
+                    <Phone className="w-4 h-4" />
+                    Contato de Emergência (Opcional)
+                  </h3>
+                  <p className="text-xs text-slate-500 mb-3">
+                    Se preencher um campo, nome e telefone passam a ser obrigatórios.
+                  </p>
+
+                  <Field label="Nome do contato" error={errors.emergenciaNome?.message}>
+                    <input
+                      {...register("emergenciaNome")}
+                      className={input(!!errors.emergenciaNome)}
+                      placeholder="Ex: Ana Souza"
+                    />
+                  </Field>
+
+                  <div className="grid grid-cols-2 gap-4 mt-3">
+                    <Field label="Telefone" error={errors.emergenciaTelefone?.message}>
+                      <input
+                        {...register("emergenciaTelefone")}
+                        className={input(!!errors.emergenciaTelefone)}
+                        placeholder="(11) 99999-9999"
+                        maxLength={15}
+                        onChange={(e) => setValue("emergenciaTelefone", maskPhone(e.target.value))}
+                      />
+                    </Field>
+
+                    <Field label="Relação" error={errors.emergenciaRelacao?.message}>
+                      <input
+                        {...register("emergenciaRelacao")}
+                        className={input(!!errors.emergenciaRelacao)}
+                        placeholder="Ex: Mãe, Pai, Cônjuge"
+                      />
+                    </Field>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* ─── Tab Atendimento ──────────────────────────────────────── */}
+            {tab === "atendimento" && (
+              <>
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="col-span-2">
+                    <Field label="Logradouro" error={undefined}>
+                      <input {...register("logradouro")} className={input(false)} placeholder="Rua, Av., etc." />
+                    </Field>
+                  </div>
+                  <Field label="Número" error={undefined}>
+                    <input {...register("numero")} className={input(false)} placeholder="123" />
+                  </Field>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <Field label="Complemento" error={undefined}>
+                    <input {...register("complemento")} className={input(false)} placeholder="Apto, Bloco..." />
+                  </Field>
+                  <Field label="Bairro" error={undefined}>
+                    <input {...register("bairro")} className={input(false)} placeholder="Bairro" />
+                  </Field>
+                </div>
+
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="col-span-2">
+                    <Field label="Cidade" error={undefined}>
+                      <input {...register("cidade")} className={input(false)} placeholder="São Paulo" />
+                    </Field>
+                  </div>
+                  <Field label="Estado" error={undefined}>
+                    <select {...register("estado")} className={input(false)}>
+                      <option value="">UF</option>
+                      {ESTADOS_BR.map((uf) => (
+                        <option key={uf} value={uf}>{uf}</option>
+                      ))}
+                    </select>
+                  </Field>
+                </div>
+
+                <Field label="CEP" error={undefined}>
+                  <input
+                    {...register("cep")}
+                    className={cn(input(false), "max-w-[160px]")}
+                    placeholder="00000-000"
+                    maxLength={9}
+                    onChange={(e) => setValue("cep", maskCEP(e.target.value))}
+                  />
+                </Field>
+              </>
+            )}
+
+            {/* ─── Tab Atendimento ──────────────────────────────────────── */}
+            {tab === "atendimento" && (
+              <>
+                <p className="text-xs text-slate-500 -mt-1">
+                  Defina os padrões de atendimento para este paciente. Estes valores serão usados automaticamente ao agendar sessões.
+                </p>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <Field label="Duração da Sessão (min)" error={undefined}>
+                    <select
+                      {...register("duracaoSessaoPadrao", { valueAsNumber: true })}
+                      className={input(false)}
+                    >
+                      {[15, 30, 45, 50, 60, 90, 120].map((d) => (
+                        <option key={d} value={d}>{d} min</option>
+                      ))}
+                    </select>
+                  </Field>
+
+                  <Field label="Valor da Sessão (R$)" error={undefined}>
+                    <input
+                      type="number"
+                      step="0.01"
+                      {...register("valorSessaoPadrao", { valueAsNumber: true })}
+                      className={input(false)}
+                      placeholder="0.00"
+                    />
+                  </Field>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <Field label="Forma de Pagamento" error={undefined}>
+                    <select {...register("formaPagamentoPadrao")} className={input(false)}>
+                      <option value="">Não definido</option>
+                      <option value="pix">Pix</option>
+                      <option value="cartao">Cartão</option>
+                      <option value="dinheiro">Dinheiro</option>
+                      <option value="transferencia">Transferência</option>
+                    </select>
+                  </Field>
+
+                  <Field label="Modalidade" error={undefined}>
+                    <select {...register("modalidadePadrao")} className={input(false)}>
+                      <option value="">Não definido</option>
+                      <option value="presencial">Presencial</option>
+                      <option value="online">Online</option>
+                    </select>
+                  </Field>
+                </div>
+
+                <Field label="Frequência" error={undefined}>
+                  <select {...register("frequenciaPadrao")} className={cn(input(false), "max-w-[200px]")}>
+                    <option value="">Não definido</option>
+                    <option value="semanal">Semanal</option>
+                    <option value="quinzenal">Quinzenal</option>
+                  </select>
+                </Field>
               </>
             )}
 
@@ -394,43 +567,6 @@ export function PacienteModal({ open, paciente, onClose, onSuccess }: PacienteMo
                 </Field>
               </>
             )}
-
-            {/* ─── Tab Contato de Emergência ───────────────────────────── */}
-            {tab === "emergencia" && (
-              <>
-                <p className="text-xs text-slate-500 -mt-1">
-                  Opcional. Se preencher um campo, nome e telefone passam a ser obrigatórios.
-                </p>
-
-                <Field label="Nome do contato" error={errors.emergenciaNome?.message}>
-                  <input
-                    {...register("emergenciaNome")}
-                    className={input(!!errors.emergenciaNome)}
-                    placeholder="Ex: Ana Souza"
-                  />
-                </Field>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <Field label="Telefone" error={errors.emergenciaTelefone?.message}>
-                    <input
-                      {...register("emergenciaTelefone")}
-                      className={input(!!errors.emergenciaTelefone)}
-                      placeholder="(11) 99999-9999"
-                      maxLength={15}
-                      onChange={(e) => setValue("emergenciaTelefone", maskPhone(e.target.value))}
-                    />
-                  </Field>
-
-                  <Field label="Relação" error={errors.emergenciaRelacao?.message}>
-                    <input
-                      {...register("emergenciaRelacao")}
-                      className={input(!!errors.emergenciaRelacao)}
-                      placeholder="Ex: Mãe, Pai, Cônjuge"
-                    />
-                  </Field>
-                </div>
-              </>
-            )}
           </div>
 
           {/* Footer */}
@@ -448,7 +584,7 @@ export function PacienteModal({ open, paciente, onClose, onSuccess }: PacienteMo
                 className="px-4 py-2 text-sm font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors">
                 Cancelar
               </button>
-              {tab !== "emergencia" ? (
+              {tab !== "endereco" ? (
                 <button type="button" onClick={() => setTab(ordemTabs[ordemTabs.indexOf(tab) + 1])}
                   className="px-4 py-2 text-sm font-semibold bg-primary-500 hover:bg-primary-600 text-white rounded-xl transition-colors">
                   Próximo →

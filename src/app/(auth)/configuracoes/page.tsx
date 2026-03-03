@@ -18,6 +18,7 @@ const perfilSchema = z.object({
   displayName:     z.string().min(3, "Nome muito curto"),
   crp:             z.string().optional(),
   crpUF:           z.string().length(2, "UF inválida").optional(),
+  cidade:          z.union([z.literal(""), z.string().min(2, "Cidade inválida")]).optional(),
   miniCV:          z.string().max(500, "Máximo 500 caracteres").optional(),
   abordagem:       z.array(z.enum(["TCC", "Psicanálise", "Humanista", "Gestalt", "DBT", "EMDR", "Sistêmica", "ACT", "Integrativa", "Outra"])),
   especialidades:  z.array(z.string()),
@@ -26,6 +27,7 @@ const perfilSchema = z.object({
 const atendimentoSchema = z.object({
   valorSessao:     z.number().min(0, "Valor inválido").nullable(),
   duracaoSessao:   z.number().min(15).max(180),
+  politicaCancelamento: z.enum(["24h", "48h"]),
   telefone:        z.string().optional(),
 });
 
@@ -145,6 +147,7 @@ function AbaPerfil({ perfil, userId, onUpdate }: { perfil: UserFirestore; userId
       displayName:    perfil.displayName ?? "",
       crp:            perfil.crp ?? "",
       crpUF:          perfil.crpUF ?? "",
+      cidade:         perfil.cidade ?? "",
       miniCV:         perfil.miniCV ?? "",
       abordagem:      perfil.abordagem ?? [],
       especialidades: perfil.especialidades ?? [],
@@ -157,7 +160,10 @@ function AbaPerfil({ perfil, userId, onUpdate }: { perfil: UserFirestore; userId
   const onSubmit = async (data: PerfilData) => {
     setLoading(true);
     try {
-      await atualizarPerfil(userId, data);
+      await atualizarPerfil(userId, {
+        ...data,
+        cidade: data.cidade?.trim() ? data.cidade.trim() : null,
+      });
       const atualizado = await buscarUsuario(userId);
       if (atualizado) onUpdate(atualizado);
       toast.success("Perfil atualizado com sucesso!");
@@ -179,6 +185,16 @@ function AbaPerfil({ perfil, userId, onUpdate }: { perfil: UserFirestore; userId
             className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
           />
           {errors.displayName && <p className="text-xs text-red-600 mt-1">{errors.displayName.message}</p>}
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-1">Cidade (Foro preferencial)</label>
+          <input
+            {...register("cidade")}
+            placeholder="Ex: São Paulo"
+            className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary-500"
+          />
+          {errors.cidade && <p className="text-xs text-red-600 mt-1">{errors.cidade.message}</p>}
         </div>
 
         <div className="grid grid-cols-3 gap-2">
@@ -269,6 +285,7 @@ function AbaAtendimento({ perfil, userId, onUpdate }: { perfil: UserFirestore; u
     defaultValues: {
       valorSessao:   perfil.valorSessao,
       duracaoSessao: perfil.duracaoSessao,
+      politicaCancelamento: perfil.politicaCancelamento ?? "24h",
       telefone:      perfil.telefone ?? "",
     },
   });
@@ -310,6 +327,18 @@ function AbaAtendimento({ perfil, userId, onUpdate }: { perfil: UserFirestore; u
           >
             {[15, 30, 45, 50, 60, 90, 120].map((d) => <option key={d} value={d}>{d} min</option>)}
           </select>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-1">Política de Cancelamento</label>
+          <select
+            {...register("politicaCancelamento")}
+            className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary-500"
+          >
+            <option value="24h">24 horas antes</option>
+            <option value="48h">48 horas antes</option>
+          </select>
+          <p className="text-xs text-slate-500 mt-1">Antecedência mínima para remarcação/cancelamento sem cobrança</p>
         </div>
 
         <div>

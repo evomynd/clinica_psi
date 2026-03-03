@@ -3,13 +3,14 @@
 import { useState, useEffect, useCallback } from "react";
 import {
   X, User, Phone, Mail, MapPin, Calendar, Edit2,
-  FileText, Plus, Trash2, Loader2, Lock, ChevronDown, ChevronUp, Copy, ExternalLink,
+  FileText, Plus, Trash2, Loader2, Lock, ChevronDown, ChevronUp, Copy, ExternalLink, Download, AlertTriangle,
 } from "lucide-react";
 import {
   buscarObservacoesDoPaciente,
   criarObservacao,
   atualizarObservacao,
   deletarObservacao,
+  deletarPaciente,
   Timestamp,
 } from "@/lib/firebase/firestore";
 import { encryptText, decryptText } from "@/lib/encryption";
@@ -239,14 +240,23 @@ function ObservacoesSection({ paciente }: { paciente: PacienteFirestore }) {
 
 // ─── Painel Principal ─────────────────────────────────────────────────────────
 export function PacienteDetalhePanel({ paciente, onClose, onEditClick, onPacienteUpdated }: PacienteDetalhePanelProps) {
+  const { user } = useAuth();
   const nascimento = paciente.dataNascimento?.toDate?.() ?? null;
   const idade      = nascimento ? calcularIdade(nascimento) : null;
   const [gerandoTCLE, setGerandoTCLE] = useState(false);
   const [linkTCLE, setLinkTCLE] = useState<string | null>(paciente.tcleUrl ?? null);
+  const [gerandoContrato, setGerandoContrato] = useState(false);
+  const [linkContrato, setLinkContrato] = useState<string | null>(paciente.contratoUrl ?? null);
+  const [modalDelete, setModalDelete] = useState(false);
+  const [downloadsTCLE, setDownloadsTCLE] = useState(false);
+  const [downloadsContrato, setDownloadsContrato] = useState(false);
+  const [downloadsObservacoes, setDownloadsObservacoes] = useState(false);
+  const [deletando, setDeletando] = useState(false);
 
   useEffect(() => {
     setLinkTCLE(paciente.tcleUrl ?? null);
-  }, [paciente.id, paciente.tcleUrl]);
+    setLinkContrato(paciente.contratoUrl ?? null);
+  }, [paciente.id, paciente.tcleUrl, paciente.contratoUrl]);
 
   async function gerarLinkTCLE() {
     if (!paciente.id) return;
@@ -281,6 +291,97 @@ export function PacienteDetalhePanel({ paciente, onClose, onEditClick, onPacient
     if (!linkTCLE) return;
     await navigator.clipboard.writeText(linkTCLE);
     toast.success("Link do TCLE copiado.");
+  }
+
+  async function gerarLinkContrato() {
+    if (!paciente.id) return;
+    setGerandoContrato(true);
+    try {
+      const response = await fetch("/api/contrato/gerar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pacienteId: paciente.id }),
+      });
+
+      const body = await response.json();
+
+      if (!response.ok) {
+        toast.error(body?.error ?? "Não foi possível gerar o contrato.");
+        return;
+      }
+
+      const novoLink = body?.linkAssinatura as string;
+      setLinkContrato(novoLink);
+      await navigator.clipboard.writeText(novoLink);
+      toast.success("Link do contrato gerado e copiado.");
+      await onPacienteUpdated?.();
+    } catch {
+      toast.error("Erro ao gerar link do contrato.");
+    } finally {
+      setGerandoContrato(false);
+    }
+  }
+
+  async function copiarLinkContrato() {
+    if (!linkContrato) return;
+    await navigator.clipboard.writeText(linkContrato);
+    toast.success("Link do contrato copiado.");
+  }
+
+  async function baixarObservacoes() {
+    if (!paciente.id || !user) return;
+    try {
+      const response = await fetch(`/api/pacientes/observacoes-export?pacienteId=${paciente.id}&userId=${user.uid}`);
+      if (!response.ok) {
+        toast.error("Erro ao exportar observações.");
+        return;
+      }
+
+      const data = await response.json();
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `observacoes-${paciente.nomeCompleto.replace(/\s+/g, "_")}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+
+      setDownloadsObservacoes(true);
+      toast.success("Observações exportadas.");
+    } catch {
+      toast.error("Erro ao baixar observações.");
+    }
+  }
+
+  async function confirmarDelecao() {
+    if (!paciente.id) return;
+    if (!downloadsTCLE || !downloadsContrato || !downloadsObservacoes) {
+      toast.error("Você precisa baixar todos os arquivos antes de deletar o paciente.");
+      return;
+    }
+
+    setDeletando(true);
+    try {
+      await deletarPaciente(paciente.id);
+      toast.success("Paciente deletado permanentemente.");
+      onClose();
+      await onPacienteUpdated?.();
+    } catch {
+      toast.error("Erro ao deletar paciente.");
+    } finally {
+      setDeletando(false);
+    }
+  }
+
+  function iniciarDelecao() {
+    if (paciente.ativo) {
+      toast.error("Você só pode deletar pacientes inativos.");
+      return;
+    }
+    setModalDelete(true);
+    setDownloadsTCLE(false);
+    setDownloadsContrato(false);
+    setDownloadsObservacoes(false);
   }
 
   return (
@@ -410,12 +511,76 @@ export function PacienteDetalhePanel({ paciente, onClose, onEditClick, onPacient
               </div>
             )}
 
+            {paciente.consentimentoTCLE?.assinado && linkTCLE && (
+              <div className="flex flex-wrap gap-2 pt-1">
+                <a
+                  href={linkTCLE}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-green-50 text-green-700 text-xs font-medium hover:bg-green-100"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  Visualizar / Baixar PDF
+                </a>
+              </div>
+            )}
+
             <div className="flex items-center gap-2 text-sm">
               <FileText className={cn("w-4 h-4 flex-shrink-0", paciente.contratoAssinado ? "text-green-500" : "text-amber-400")} />
               <span className={paciente.contratoAssinado ? "text-green-700" : "text-amber-600"}>
                 Contrato: {paciente.contratoAssinado ? "Assinado" : "Pendente"}
               </span>
             </div>
+
+            {!paciente.contratoAssinado && (
+              <div className="flex flex-wrap gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={gerarLinkContrato}
+                  disabled={gerandoContrato}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-primary-50 text-primary-700 text-xs font-semibold hover:bg-primary-100 disabled:opacity-60"
+                >
+                  {gerandoContrato ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileText className="w-3.5 h-3.5" />}
+                  Gerar link Contrato
+                </button>
+
+                {linkContrato && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={copiarLinkContrato}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-100 text-slate-700 text-xs font-medium hover:bg-slate-200"
+                    >
+                      <Copy className="w-3.5 h-3.5" />
+                      Copiar link
+                    </button>
+                    <a
+                      href={linkContrato}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-100 text-slate-700 text-xs font-medium hover:bg-slate-200"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                      Abrir
+                    </a>
+                  </>
+                )}
+              </div>
+            )}
+
+            {paciente.contratoAssinado && linkContrato && (
+              <div className="flex flex-wrap gap-2 pt-1">
+                <a
+                  href={linkContrato}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-green-50 text-green-700 text-xs font-medium hover:bg-green-100"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  Visualizar / Baixar PDF
+                </a>
+              </div>
+            )}
           </div>
         </div>
 
@@ -428,6 +593,126 @@ export function PacienteDetalhePanel({ paciente, onClose, onEditClick, onPacient
           <ObservacoesSection paciente={paciente} />
         </div>
       </div>
+
+      {/* Botão deletar (footer fixo) */}
+      {!paciente.ativo && (
+        <div className="px-5 py-3 border-t border-slate-100 bg-slate-50">
+          <button
+            onClick={iniciarDelecao}
+            className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 text-sm font-medium transition-colors"
+          >
+            <Trash2 className="w-4 h-4" />
+            Deletar Paciente Permanentemente
+          </button>
+        </div>
+      )}
+
+      {/* Modal de confirmação de deleção */}
+      {modalDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ zIndex: 9999 }}>
+          <div className="absolute inset-0 bg-black/50" onClick={() => setModalDelete(false)} />
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md">
+            <div className="px-6 py-4 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5 text-red-500" />
+                <h3 className="font-semibold text-slate-800">Deletar Paciente</h3>
+              </div>
+            </div>
+
+            <div className="px-6 py-5 space-y-4">
+              <p className="text-sm text-slate-600">
+                Esta ação é <strong>irreversível</strong>. Você deve baixar todos os documentos antes de prosseguir.
+              </p>
+
+              <div className="space-y-2">
+                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Downloads Obrigatórios</p>
+                
+                <label className="flex items-center gap-2 p-3 border border-slate-200 rounded-lg cursor-pointer hover:bg-slate-50">
+                  <input
+                    type="checkbox"
+                    checked={downloadsTCLE}
+                    onChange={(e) => setDownloadsTCLE(e.target.checked)}
+                    className="flex-shrink-0"
+                  />
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-slate-700">TCLE Assinado</p>
+                    {linkTCLE && (
+                      <a
+                        href={linkTCLE}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={() => setDownloadsTCLE(true)}
+                        className="text-xs text-primary-600 hover:underline"
+                      >
+                        Abrir para baixar
+                      </a>
+                    )}
+                  </div>
+                </label>
+
+                <label className="flex items-center gap-2 p-3 border border-slate-200 rounded-lg cursor-pointer hover:bg-slate-50">
+                  <input
+                    type="checkbox"
+                    checked={downloadsContrato}
+                    onChange={(e) => setDownloadsContrato(e.target.checked)}
+                    className="flex-shrink-0"
+                  />
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-slate-700">Contrato Assinado</p>
+                    {linkContrato && (
+                      <a
+                        href={linkContrato}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={() => setDownloadsContrato(true)}
+                        className="text-xs text-primary-600 hover:underline"
+                      >
+                        Abrir para baixar
+                      </a>
+                    )}
+                  </div>
+                </label>
+
+                <label className="flex items-center gap-2 p-3 border border-slate-200 rounded-lg cursor-pointer hover:bg-slate-50">
+                  <input
+                    type="checkbox"
+                    checked={downloadsObservacoes}
+                    onChange={(e) => setDownloadsObservacoes(e.target.checked)}
+                    className="flex-shrink-0"
+                  />
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-slate-700">Observações</p>
+                    <button
+                      type="button"
+                      onClick={baixarObservacoes}
+                      className="text-xs text-primary-600 hover:underline"
+                    >
+                      Clique para exportar JSON
+                    </button>
+                  </div>
+                </label>
+              </div>
+            </div>
+
+            <div className="px-6 py-4 border-t border-slate-100 flex gap-2">
+              <button
+                onClick={() => setModalDelete(false)}
+                className="flex-1 px-4 py-2 rounded-lg border border-slate-200 text-slate-700 text-sm font-medium hover:bg-slate-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={confirmarDelecao}
+                disabled={!downloadsTCLE || !downloadsContrato || !downloadsObservacoes || deletando}
+                className="flex-1 px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {deletando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                Deletar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

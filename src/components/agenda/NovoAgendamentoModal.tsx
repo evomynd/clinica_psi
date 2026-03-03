@@ -93,6 +93,7 @@ export function NovoAgendamentoModal({ open, dataPreSelecionada, pacientePreSele
   });
 
   const recorrenciaSemanal = watch("recorrenciaSemanal");
+  const pacienteId = watch("pacienteId");
 
   // Atualiza data/hora quando a pré-seleção mudar
   useEffect(() => {
@@ -135,6 +136,21 @@ export function NovoAgendamentoModal({ open, dataPreSelecionada, pacientePreSele
       setValue("pacienteId", pacientePreSelecionadoId);
     }
   }, [open, agendamentoEditavel, pacientePreSelecionadoId, setValue]);
+
+  // Carrega valores padrão do paciente selecionado
+  useEffect(() => {
+    if (!pacienteId || agendamentoEditavel) return;
+    const pacienteSelecionado = pacientes.find(p => p.id === pacienteId);
+    if (pacienteSelecionado) {
+      // Atualiza campos com os valores padrão se estiverem definidos
+      if (pacienteSelecionado.duracaoSessaoPadrao) {
+        setValue("duracaoMinutos", pacienteSelecionado.duracaoSessaoPadrao);
+      }
+      if (pacienteSelecionado.valorSessaoPadrao !== null && pacienteSelecionado.valorSessaoPadrao !== undefined) {
+        setValue("valor", pacienteSelecionado.valorSessaoPadrao);
+      }
+    }
+  }, [pacienteId, pacientes, agendamentoEditavel, setValue]);
 
   // ─── Submit ────────────────────────────────────────────────────────────────
   async function onSubmit(data: FormData) {

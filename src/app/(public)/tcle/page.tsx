@@ -142,13 +142,28 @@ function TCLEPublicContent() {
                 )}
 
                 {concluido ? (
-                  <div className="rounded-xl border border-green-200 bg-green-50 text-green-700 px-4 py-3 text-sm flex items-start gap-2">
-                    <CheckCircle2 className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                    <span>
-                      TCLE assinado com sucesso.
-                      {dados.dataAssinatura ? ` Data da assinatura: ${new Date(dados.dataAssinatura).toLocaleString("pt-BR")}.` : ""}
-                    </span>
-                  </div>
+                  <>
+                    <div className="rounded-xl border border-green-200 bg-green-50 text-green-700 px-4 py-3 text-sm flex items-start gap-2">
+                      <CheckCircle2 className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                      <div>
+                        <p className="font-semibold mb-1">TCLE assinado com sucesso!</p>
+                        {dados.dataAssinatura && (
+                          <p className="text-xs text-green-600">
+                            Data da assinatura: {new Date(dados.dataAssinatura).toLocaleString("pt-BR")}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => window.print()}
+                      className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-primary-600 hover:bg-primary-700 text-white text-sm font-semibold"
+                    >
+                      <Printer className="w-4 h-4" />
+                      Baixar PDF Assinado
+                    </button>
+                  </>
                 ) : (
                   <>
                     <label className="flex items-start gap-2 text-sm text-slate-700">
