@@ -16,7 +16,8 @@ const nextConfig: NextConfig = {
           { key: "X-XSS-Protection", value: "1; mode=block" },
           {
             key:   "Permissions-Policy",
-            value: "camera=self, microphone=self, geolocation=self",
+            value:
+              'camera=(self "https://8x8.vc"), microphone=(self "https://8x8.vc"), geolocation=(self)',
           },
         ],
       },
