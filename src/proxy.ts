@@ -54,7 +54,7 @@ export function proxy(request: NextRequest) {
   response.headers.set("X-XSS-Protection", "1; mode=block");
   response.headers.set(
     "Permissions-Policy",
-    "camera=self, microphone=self, geolocation=self"
+    'camera=(self "https://8x8.vc"), microphone=(self "https://8x8.vc"), geolocation=(self)'
   );
 
   return response;

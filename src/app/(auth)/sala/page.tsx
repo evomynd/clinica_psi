@@ -106,6 +106,23 @@ export default function SalaPage() {
       if (!agendamento || !user || !userProfile) return;
 
       try {
+        function fixIframePermissions() {
+          const iframe = jitsiContainerRef.current?.querySelector("iframe");
+          if (iframe) {
+            iframe.allow =
+              "camera *; microphone *; display-capture *; fullscreen *; autoplay *; clipboard-write *; picture-in-picture *";
+          }
+        }
+
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+          stream.getTracks().forEach((track) => track.stop());
+        } catch (permErr: any) {
+          if (permErr?.name === "NotAllowedError" || permErr?.name === "PermissionDeniedError") {
+            toast.error("Câmera/microfone bloqueados. Autorize nas configurações do navegador.");
+          }
+        }
+
         const fullRoomName = `vpaas-magic-cookie-ae78187b84ff498e8be9f759889a4413/clinica-psi-${linkSala}`;
 
         // Gera JWT no servidor
@@ -162,6 +179,9 @@ export default function SalaPage() {
         };
 
         jitsiApiRef.current = new window.JitsiMeetExternalAPI(domain, options);
+
+        setTimeout(fixIframePermissions, 200);
+        jitsiApiRef.current.addEventListener("videoConferenceJoined", fixIframePermissions);
 
         // Event listeners
         jitsiApiRef.current.addEventListener("videoConferenceJoined", () => {
