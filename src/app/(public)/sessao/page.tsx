@@ -41,25 +41,22 @@ function SessaoPageInner() {
     async function buscarAgendamento() {
       try {
         setLoading(true);
-        const snap = await getDocs(
-          query(collection(db, COLLECTIONS.AGENDAMENTOS), where("linkSala", "==", linkSala))
-        );
+        const { buscarAgendamentoPorSala } = await import("@/lib/firebase/firestore");
+        const agData = await buscarAgendamentoPorSala(linkSala!);
 
-        if (snap.empty) {
+        if (!agData) {
           setError("Sessão não encontrada. Verifique o link.");
           setLoading(false);
           return;
         }
 
-        const agData = { id: snap.docs[0].id, ...snap.docs[0].data() } as AgendamentoFirestore;
         setAgendamento(agData);
 
         if (agData.pacienteId) {
-          const pSnap = await getDocs(
-            query(collection(db, COLLECTIONS.PACIENTES), where("__name__", "==", agData.pacienteId))
-          );
-          if (!pSnap.empty) {
-            setPaciente({ id: pSnap.docs[0].id, ...pSnap.docs[0].data() } as PacienteFirestore);
+          const { buscarPacientePorId } = await import("@/lib/firebase/firestore");
+          const pacienteData = await buscarPacientePorId(agData.pacienteId);
+          if (pacienteData) {
+            setPaciente(pacienteData);
           }
         }
 

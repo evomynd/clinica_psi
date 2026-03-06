@@ -219,6 +219,37 @@ export interface Pagamento {
   observacoes?: string;
 }
 
+// Formato criptografado no Firestore (dados financeiros protegidos)
+export interface AgendamentoFirestoreEncrypted {
+  id?: string;
+  userId: string;               // Psicólogo
+  pacienteId: string;
+  clinicaId: string;
+
+  dataHora: Timestamp;
+  duracaoMinutos: number;
+  status: SessionStatus;
+  tipoAtendimento: "sessao_semanal" | "sessao_emergencial" | "avaliacao" | "introducao_15min";
+
+  linkSala: string;             // UUID para a sala virtual
+  notificacaoEnviada: boolean;
+  recorrenciaId?: string | null;
+  recorrenciaAte?: Timestamp | null;
+
+  // Dados públicos do pagamento (não sensíveis)
+  pagamentoStatus: PagamentoStatus;
+  pagamentoDataPagamento: Timestamp | null;
+  pagamentoReciboCriado: boolean;
+
+  // Dados sensíveis criptografados (observacoes + valores financeiros)
+  dadosCriptografados: string;
+  dadosIV: string;
+
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
+
+// Formato descriptografado para uso no cliente
 export interface AgendamentoFirestore {
   id?: string;
   userId: string;               // Psicólogo

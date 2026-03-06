@@ -25,6 +25,7 @@ import type {
   PacienteFirestoreEncrypted,
   ObservacaoPacienteFirestore,
   AgendamentoFirestore,
+  AgendamentoFirestoreEncrypted,
   DisponibilidadeFirestore,
   AuditoriaAcessoFirestore,
   TarefaFirestore,
@@ -34,6 +35,9 @@ import {
   encryptPatientData,
   decryptPatientData,
   type DadosSensiveisPaciente,
+  encryptAppointmentData,
+  decryptAppointmentData,
+  type DadosSensiveisAgendamento,
 } from "@/lib/encryption";
 
 // ─── Criptografia de pacientes ───────────────────────────────────────────────
@@ -122,6 +126,87 @@ function decryptPatient(
     frequenciaPadrao: encrypted.frequenciaPadrao,
     ativo: encrypted.ativo,
     observacoesInternas: dadosSensiveis.observacoesInternas,
+    createdAt: encrypted.createdAt,
+    updatedAt: encrypted.updatedAt,
+  };
+}
+
+// ─── Criptografia de agendamentos (dados financeiros) ────────────────────────
+
+function encryptAppointment(
+  agendamento: Omit<AgendamentoFirestore, "id" | "createdAt" | "updatedAt">,
+  userId: string
+): Omit<AgendamentoFirestoreEncrypted, "id" | "createdAt" | "updatedAt"> {
+  const dadosSensiveis: DadosSensiveisAgendamento = {
+    observacoes: agendamento.observacoes,
+    pagamento: {
+      valor: agendamento.pagamento.valor,
+      metodoPagamento: agendamento.pagamento.metodoPagamento,
+      numeroRecibo: agendamento.pagamento.numeroRecibo,
+      observacoes: agendamento.pagamento.observacoes,
+    },
+  };
+
+  const { dadosCriptografados, dadosIV } = encryptAppointmentData(dadosSensiveis, userId);
+
+  return {
+    userId: agendamento.userId,
+    pacienteId: agendamento.pacienteId,
+    clinicaId: agendamento.clinicaId,
+    dataHora: agendamento.dataHora,
+    duracaoMinutos: agendamento.duracaoMinutos,
+    status: agendamento.status,
+    tipoAtendimento: agendamento.tipoAtendimento,
+    linkSala: agendamento.linkSala,
+    notificacaoEnviada: agendamento.notificacaoEnviada,
+    recorrenciaId: agendamento.recorrenciaId,
+    recorrenciaAte: agendamento.recorrenciaAte,
+    pagamentoStatus: agendamento.pagamento.status,
+    pagamentoDataPagamento: agendamento.pagamento.dataPagamento,
+    pagamentoReciboCriado: agendamento.pagamento.reciboCriado,
+    dadosCriptografados,
+    dadosIV,
+  };
+}
+
+function decryptAppointment(
+  encrypted: AgendamentoFirestoreEncrypted & { id?: string },
+  userId: string
+): AgendamentoFirestore | null {
+  const dadosSensiveis = decryptAppointmentData(
+    encrypted.dadosCriptografados,
+    encrypted.dadosIV,
+    userId
+  );
+
+  if (!dadosSensiveis) {
+    console.error("[Criptografia] Erro ao descriptografar agendamento:", encrypted.id);
+    return null;
+  }
+
+  return {
+    id: encrypted.id,
+    userId: encrypted.userId,
+    pacienteId: encrypted.pacienteId,
+    clinicaId: encrypted.clinicaId,
+    dataHora: encrypted.dataHora,
+    duracaoMinutos: encrypted.duracaoMinutos,
+    status: encrypted.status,
+    tipoAtendimento: encrypted.tipoAtendimento,
+    linkSala: encrypted.linkSala,
+    notificacaoEnviada: encrypted.notificacaoEnviada,
+    observacoes: dadosSensiveis.observacoes,
+    recorrenciaId: encrypted.recorrenciaId,
+    recorrenciaAte: encrypted.recorrenciaAte,
+    pagamento: {
+      status: encrypted.pagamentoStatus,
+      valor: dadosSensiveis.pagamento.valor,
+      dataPagamento: encrypted.pagamentoDataPagamento,
+      metodoPagamento: dadosSensiveis.pagamento.metodoPagamento,
+      reciboCriado: encrypted.pagamentoReciboCriado,
+      numeroRecibo: dadosSensiveis.pagamento.numeroRecibo,
+      observacoes: dadosSensiveis.pagamento.observacoes,
+    },
     createdAt: encrypted.createdAt,
     updatedAt: encrypted.updatedAt,
   };
@@ -296,8 +381,15 @@ export async function buscarAgendamentosHoje(
   const snap = await getDocs(
     query(collection(db, COLLECTIONS.AGENDAMENTOS), where("userId", "==", userId))
   );
-  return snap.docs
-    .map((d) => ({ id: d.id, ...d.data() } as AgendamentoFirestore))
+  
+  const decrypted = snap.docs
+    .map((d) => {
+      const encrypted = { id: d.id, ...d.data() } as AgendamentoFirestoreEncrypted;
+      return decryptAppointment(encrypted, userId);
+    })
+    .filter((a): a is AgendamentoFirestore => a !== null);
+
+  return decrypted
     .filter((a) => {
       const ms = a.dataHora?.toMillis?.() ?? 0;
       return ms >= inicio.getTime() && ms <= fim.getTime();
@@ -313,13 +405,33 @@ export async function buscarAgendamentosPeriodo(
   const snap = await getDocs(
     query(collection(db, COLLECTIONS.AGENDAMENTOS), where("userId", "==", userId))
   );
-  return snap.docs
-    .map((d) => ({ id: d.id, ...d.data() } as AgendamentoFirestore))
+  
+  const decrypted = snap.docs
+    .map((d) => {
+      const encrypted = { id: d.id, ...d.data() } as AgendamentoFirestoreEncrypted;
+      return decryptAppointment(encrypted, userId);
+    })
+    .filter((a): a is AgendamentoFirestore => a !== null);
+
+  return decrypted
     .filter((a) => {
       const ms = a.dataHora?.toMillis?.() ?? 0;
       return ms >= inicio.getTime() && ms <= fim.getTime();
     })
     .sort((a, b) => (a.dataHora?.toMillis?.() ?? 0) - (b.dataHora?.toMillis?.() ?? 0));
+}
+
+export async function buscarAgendamentoPorSala(
+  linkSala: string
+): Promise<AgendamentoFirestore | null> {
+  const snap = await getDocs(
+    query(collection(db, COLLECTIONS.AGENDAMENTOS), where("linkSala", "==", linkSala))
+  );
+  
+  if (snap.empty) return null;
+
+  const encrypted = { id: snap.docs[0].id, ...snap.docs[0].data() } as AgendamentoFirestoreEncrypted;
+  return decryptAppointment(encrypted, encrypted.userId);
 }
 
 // ─── Observações ──────────────────────────────────────────────────────────
@@ -414,8 +526,9 @@ export function subscribeToCollection<T extends DocumentData>(
 export async function criarAgendamento(
   data: Omit<AgendamentoFirestore, "id" | "createdAt" | "updatedAt">
 ): Promise<string> {
+  const encrypted = encryptAppointment(data, data.userId);
   const ref = await addDoc(collection(db, COLLECTIONS.AGENDAMENTOS), {
-    ...data,
+    ...encrypted,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });
@@ -426,8 +539,19 @@ export async function atualizarAgendamento(
   id: string,
   data: Partial<Omit<AgendamentoFirestore, "id" | "createdAt">>
 ): Promise<void> {
-  await updateDoc(doc(db, COLLECTIONS.AGENDAMENTOS, id), {
-    ...data,
+  const ref = doc(db, COLLECTIONS.AGENDAMENTOS, id);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) throw new Error("Agendamento não encontrado");
+
+  const encrypted = snap.data() as AgendamentoFirestoreEncrypted;
+  const current = decryptAppointment(encrypted, encrypted.userId);
+  if (!current) throw new Error("Erro ao descriptografar agendamento");
+
+  const merged = { ...current, ...data, id: snap.id };
+  const reEncrypted = encryptAppointment(merged, merged.userId);
+
+  await updateDoc(ref, {
+    ...reEncrypted,
     updatedAt: serverTimestamp(),
   });
 }
@@ -452,13 +576,13 @@ export async function cancelarAgendamentosFuturosDaRecorrencia(
 
   const baseMs = dataBase.getTime();
   const alvos = snap.docs.filter((d) => {
-    const data = d.data() as AgendamentoFirestore;
-    if ((data.recorrenciaId ?? null) !== recorrenciaId) return false;
-    const ms = data.dataHora?.toMillis?.() ?? 0;
+    const encrypted = d.data() as AgendamentoFirestoreEncrypted;
+    if ((encrypted.recorrenciaId ?? null) !== recorrenciaId) return false;
+    const ms = encrypted.dataHora?.toMillis?.() ?? 0;
     const inRange = incluirAtual ? ms >= baseMs : ms > baseMs;
     if (!inRange) return false;
     if (!preservarPagos) return true;
-    return data.pagamento?.status !== "pago";
+    return encrypted.pagamentoStatus !== "pago";
   });
 
   if (!alvos.length) return 0;
@@ -480,8 +604,14 @@ export async function buscarAgendamentosDaRecorrenciaAPartirDe(
   );
 
   const baseMs = dataBase.getTime();
-  return snap.docs
-    .map((d) => ({ id: d.id, ...d.data() } as AgendamentoFirestore))
+  const decrypted = snap.docs
+    .map((d) => {
+      const encrypted = { id: d.id, ...d.data() } as AgendamentoFirestoreEncrypted;
+      return decryptAppointment(encrypted, userId);
+    })
+    .filter((a): a is AgendamentoFirestore => a !== null);
+
+  return decrypted
     .filter((a) => {
       if ((a.recorrenciaId ?? null) !== recorrenciaId) return false;
       const ms = a.dataHora?.toMillis?.() ?? 0;
@@ -504,8 +634,14 @@ export function subscribeAgendamentosPeriodo(
   return onSnapshot(
     q,
     (snap) => {
-      const data = snap.docs
-        .map((d) => ({ id: d.id, ...d.data() } as unknown as AgendamentoFirestore))
+      const decrypted = snap.docs
+        .map((d) => {
+          const encrypted = { id: d.id, ...d.data() } as AgendamentoFirestoreEncrypted;
+          return decryptAppointment(encrypted, userId);
+        })
+        .filter((a): a is AgendamentoFirestore => a !== null);
+
+      const data = decrypted
         .filter((a) => {
           const ms = a.dataHora?.toMillis?.() ?? 0;
           return ms >= inicio.getTime() && ms <= fim.getTime();
@@ -648,8 +784,15 @@ export async function buscarAgendamentosParaFinanceiro(
   const snap = await getDocs(
     query(collection(db, COLLECTIONS.AGENDAMENTOS), where("userId", "==", userId))
   );
-  return snap.docs
-    .map((d) => ({ id: d.id, ...d.data() } as AgendamentoFirestore))
+  
+  const decrypted = snap.docs
+    .map((d) => {
+      const encrypted = { id: d.id, ...d.data() } as AgendamentoFirestoreEncrypted;
+      return decryptAppointment(encrypted, userId);
+    })
+    .filter((a): a is AgendamentoFirestore => a !== null);
+
+  return decrypted
     .filter((a) => {
       const ms = a.dataHora?.toMillis?.() ?? 0;
       const pagamentoStatus = a.pagamento?.status ?? "pendente";
@@ -671,21 +814,28 @@ export async function atualizarPagamento(
 ): Promise<void> {
   const ref = doc(db, COLLECTIONS.AGENDAMENTOS, agendamentoId);
   const snap = await getDoc(ref);
-  const atual = snap.exists() ? (snap.data() as AgendamentoFirestore) : null;
+  if (!snap.exists()) throw new Error("Agendamento não encontrado");
+
+  const encrypted = snap.data() as AgendamentoFirestoreEncrypted;
+  const atual = decryptAppointment({ id: snap.id, ...encrypted }, encrypted.userId);
+  if (!atual) throw new Error("Erro ao descriptografar agendamento");
 
   const pagamentoMerged: Pagamento = {
-    status: atual?.pagamento?.status ?? "pendente",
-    valor: atual?.pagamento?.valor ?? 0,
-    dataPagamento: atual?.pagamento?.dataPagamento ?? null,
-    metodoPagamento: atual?.pagamento?.metodoPagamento ?? null,
-    reciboCriado: atual?.pagamento?.reciboCriado ?? false,
-    numeroRecibo: atual?.pagamento?.numeroRecibo ?? null,
-    observacoes: atual?.pagamento?.observacoes ?? null,
+    status: atual.pagamento.status,
+    valor: atual.pagamento.valor,
+    dataPagamento: atual.pagamento.dataPagamento,
+    metodoPagamento: atual.pagamento.metodoPagamento,
+    reciboCriado: atual.pagamento.reciboCriado,
+    numeroRecibo: atual.pagamento.numeroRecibo,
+    observacoes: atual.pagamento.observacoes,
     ...pagamento,
-  } as Pagamento;
+  };
 
-  await updateDoc(doc(db, COLLECTIONS.AGENDAMENTOS, agendamentoId), {
-    pagamento: pagamentoMerged,
+  const updated = { ...atual, pagamento: pagamentoMerged };
+  const reEncrypted = encryptAppointment(updated, encrypted.userId);
+
+  await updateDoc(ref, {
+    ...reEncrypted,
     updatedAt: serverTimestamp(),
   });
 }

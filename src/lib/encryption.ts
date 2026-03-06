@@ -111,3 +111,32 @@ export function decryptPatientData(
 ): DadosSensiveisPaciente | null {
   return decryptObject<DadosSensiveisPaciente>(dadosCriptografados, dadosIV, uid);
 }
+
+// ─── Tipos para dados sensíveis do agendamento (financeiro) ───────────────────
+export interface DadosSensiveisAgendamento {
+  observacoes: string | null;
+  pagamento: {
+    valor: number;
+    metodoPagamento: "pix" | "cartao" | "dinheiro" | "transferencia" | null;
+    numeroRecibo?: string;
+    observacoes?: string;
+  };
+}
+
+// ─── Criptografa dados financeiros do agendamento ─────────────────────────────
+export function encryptAppointmentData(
+  dados: DadosSensiveisAgendamento,
+  uid: string
+): { dadosCriptografados: string; dadosIV: string } {
+  const { data, iv } = encryptObject(dados, uid);
+  return { dadosCriptografados: data, dadosIV: iv };
+}
+
+// ─── Descriptografa dados financeiros do agendamento ──────────────────────────
+export function decryptAppointmentData(
+  dadosCriptografados: string,
+  dadosIV: string,
+  uid: string
+): DadosSensiveisAgendamento | null {
+  return decryptObject<DadosSensiveisAgendamento>(dadosCriptografados, dadosIV, uid);
+}

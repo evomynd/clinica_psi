@@ -2,13 +2,15 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useSearchParams } from "next/navigation";
-import { Video, Loader2, AlertCircle, Users } from "lucide-react";
+import { Video, Loader2, AlertCircle, Users, Clock, Copy, Send, CheckCircle2 } from "lucide-react";
 import { useAuth } from "@/lib/hooks/useAuth";
 import { collection, query, where, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase/config";
 import { COLLECTIONS } from "@/lib/firebase/collections";
 import type { AgendamentoFirestore, PacienteFirestore } from "@/types/firestore";
 import { toast } from "sonner";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
 
 declare global {
   interface Window {
@@ -16,6 +18,209 @@ declare global {
   }
 }
 
+// ─── Componente: Lista de Agendamentos do Dia ────────────────────────────────
+function ListaAgendamentosDoDia() {
+  const { user } = useAuth();
+  const [agendamentos, setAgendamentos] = useState<
+    Array<{
+      agendamento: AgendamentoFirestore;
+      paciente: PacienteFirestore | null;
+    }>
+  >([]);
+  const [loading, setLoading] = useState(true);
+  const [copiado, setCopiado] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!user) return;
+
+    async function carregar() {
+      try {
+        setLoading(true);
+        const { buscarAgendamentosHoje, buscarPacientePorId } = await import("@/lib/firebase/firestore");
+        
+        const agendamentosHoje = await buscarAgendamentosHoje(user!.uid);
+        
+        // Busca dados dos pacientes
+        const agendamentosComPacientes = await Promise.all(
+          agendamentosHoje.map(async (ag) => {
+            const paciente = ag.pacienteId ? await buscarPacientePorId(ag.pacienteId) : null;
+            return { agendamento: ag, paciente };
+          })
+        );
+
+        setAgendamentos(agendamentosComPacientes);
+      } catch (err) {
+        console.error("Erro ao buscar agendamentos:", err);
+        toast.error("Erro ao carregar agendamentos do dia");
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    carregar();
+  }, [user]);
+
+  function getLinkSessao(linkSala: string) {
+    return `${window.location.origin}/sessao?sala=${linkSala}`;
+  }
+
+  function copiarLink(linkSala: string, agendamentoId: string) {
+    const link = getLinkSessao(linkSala);
+    navigator.clipboard.writeText(link);
+    setCopiado(agendamentoId);
+    toast.success("Link copiado!");
+    setTimeout(() => setCopiado(null), 2000);
+  }
+
+  function enviarWhatsApp(linkSala: string, nomePaciente: string, horaFormatada: string) {
+    const link = getLinkSessao(linkSala);
+    const mensagem = `Olá ${nomePaciente}! Segue o link da sua sessão de hoje às ${horaFormatada}:\n\n${link}\n\nAté logo!`;
+    const urlWhats = `https://wa.me/?text=${encodeURIComponent(mensagem)}`;
+    window.open(urlWhats, "_blank");
+  }
+
+  function podeEntrar(dataHora: any): boolean {
+    if (!dataHora?.toMillis) return false;
+    const agora = Date.now();
+    const inicio = dataHora.toMillis();
+    const diferenca = inicio - agora;
+    // Permite entrar 15 minutos antes (15 * 60 * 1000 = 900000ms)
+    return diferenca <= 900000;
+  }
+
+  function entrarNaSala(linkSala: string) {
+    const url = `/sala?sala=${linkSala}`;
+    window.open(url, "_blank");
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div className="text-center">
+          <Loader2 className="w-12 h-12 mx-auto text-primary-500 animate-spin mb-4" />
+          <p className="text-sm text-slate-500">Carregando agendamentos...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (agendamentos.length === 0) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div className="text-center p-8">
+          <Video className="w-16 h-16 mx-auto text-slate-300 mb-4" />
+          <h2 className="text-xl font-semibold text-slate-800 mb-2">Nenhuma sessão hoje</h2>
+          <p className="text-sm text-slate-500">Você não tem sessões agendadas para hoje</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-w-4xl mx-auto p-6">
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-slate-800 mb-1">Sala Virtual</h1>
+        <p className="text-sm text-slate-500">Sessões agendadas para hoje</p>
+      </div>
+
+      <div className="space-y-4">
+        {agendamentos.map(({ agendamento, paciente }) => {
+          const dataHora = agendamento.dataHora?.toDate();
+          const horaFormatada = dataHora ? format(dataHora, "HH:mm", { locale: ptBR }) : "—";
+          const dataFormatada = dataHora ? format(dataHora, "dd/MM/yyyy", { locale: ptBR }) : "—";
+          const podeEntrarAgora = podeEntrar(agendamento.dataHora);
+          const nomePaciente = paciente?.nomeCompleto || "Paciente desconhecido";
+
+          return (
+            <div
+              key={agendamento.id}
+              className="bg-white border border-slate-200 rounded-lg p-5 shadow-sm hover:shadow-md transition-shadow"
+            >
+              {/* Header do card */}
+              <div className="flex items-start justify-between mb-4">
+                <div className="flex-1">
+                  <h3 className="text-lg font-semibold text-slate-800 mb-1">{nomePaciente}</h3>
+                  <div className="flex items-center gap-4 text-sm text-slate-500">
+                    <div className="flex items-center gap-1">
+                      <Clock className="w-4 h-4" />
+                      <span>{horaFormatada}</span>
+                    </div>
+                    <span>•</span>
+                    <span>{dataFormatada}</span>
+                    <span>•</span>
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                      agendamento.status === "agendado" ? "bg-blue-100 text-blue-700" :
+                      agendamento.status === "realizado" ? "bg-green-100 text-green-700" :
+                      agendamento.status === "cancelado" ? "bg-red-100 text-red-700" :
+                      "bg-slate-100 text-slate-700"
+                    }`}>
+                      {agendamento.status}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Botões de ação */}
+              <div className="flex items-center gap-3">
+                {/* Botão WhatsApp */}
+                <button
+                  onClick={() => enviarWhatsApp(agendamento.linkSala, nomePaciente, horaFormatada)}
+                  className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg transition-colors"
+                >
+                  <Send className="w-4 h-4" />
+                  WhatsApp
+                </button>
+
+                {/* Botão Copiar */}
+                <button
+                  onClick={() => copiarLink(agendamento.linkSala, agendamento.id!)}
+                  className="flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-medium rounded-lg transition-colors"
+                >
+                  {copiado === agendamento.id ? (
+                    <>
+                      <CheckCircle2 className="w-4 h-4 text-green-600" />
+                      Copiado!
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-4 h-4" />
+                      Copiar Link
+                    </>
+                  )}
+                </button>
+
+                {/* Botão Entrar na Sala */}
+                <button
+                  onClick={() => entrarNaSala(agendamento.linkSala)}
+                  disabled={!podeEntrarAgora}
+                  className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                    podeEntrarAgora
+                      ? "bg-primary-600 hover:bg-primary-700 text-white"
+                      : "bg-slate-100 text-slate-400 cursor-not-allowed"
+                  }`}
+                  title={!podeEntrarAgora ? "Disponível 15 minutos antes da sessão" : "Entrar na sala"}
+                >
+                  <Video className="w-4 h-4" />
+                  Entrar na Sala
+                </button>
+              </div>
+
+              {/* Aviso de disponibilidade */}
+              {!podeEntrarAgora && (
+                <p className="mt-3 text-xs text-amber-600 bg-amber-50 px-3 py-2 rounded-md">
+                  <Clock className="w-3 h-3 inline mr-1" />
+                  A sala estará disponível 15 minutos antes do horário agendado
+                </p>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ─── Componente Principal: Sala Virtual ──────────────────────────────────────
 export default function SalaPage() {
   const { user, userProfile } = useAuth();
   const searchParams = useSearchParams();
@@ -37,29 +242,23 @@ export default function SalaPage() {
       try {
         setLoading(true);
         
-        const q = query(
-          collection(db, COLLECTIONS.AGENDAMENTOS),
-          where("linkSala", "==", linkSala)
-        );
+        const { buscarAgendamentoPorSala } = await import("@/lib/firebase/firestore");
+        const agendamentoData = await buscarAgendamentoPorSala(linkSala!);
         
-        const snap = await getDocs(q);
-        
-        if (snap.empty) {
+        if (!agendamentoData) {
           setError("Sessão não encontrada. Verifique o link.");
           setLoading(false);
           return;
         }
 
-        const agendamentoData = { id: snap.docs[0].id, ...snap.docs[0].data() } as AgendamentoFirestore;
         setAgendamento(agendamentoData);
 
         // Busca dados do paciente
         if (agendamentoData.pacienteId) {
-          const pacienteSnap = await getDocs(
-            query(collection(db, COLLECTIONS.PACIENTES), where("__name__", "==", agendamentoData.pacienteId))
-          );
-          if (!pacienteSnap.empty) {
-            setPaciente({ id: pacienteSnap.docs[0].id, ...pacienteSnap.docs[0].data() } as PacienteFirestore);
+          const { buscarPacientePorId } = await import("@/lib/firebase/firestore");
+          const pacienteData = await buscarPacientePorId(agendamentoData.pacienteId);
+          if (pacienteData) {
+            setPaciente(pacienteData);
           }
         }
 
@@ -214,16 +413,9 @@ export default function SalaPage() {
     };
   }, [agendamento, user, userProfile, linkSala]);
 
+  // Se não há linkSala, mostra lista de agendamentos
   if (!linkSala) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <div className="text-center p-8">
-          <AlertCircle className="w-12 h-12 mx-auto text-amber-500 mb-4" />
-          <h2 className="text-xl font-semibold text-slate-800 mb-2">Link de sala não fornecido</h2>
-          <p className="text-sm text-slate-500">Acesse pela agenda ou com o link completo da sessão</p>
-        </div>
-      </div>
-    );
+    return <ListaAgendamentosDoDia />;
   }
 
   if (loading) {
