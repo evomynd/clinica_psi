@@ -22,16 +22,26 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
 
   // Sincroniza cookie de sessão para o proxy/middleware
   // Nota: flag Secure omitida para funcionar em http://localhost
+  // Delay de 500ms antes de deletar cookie para evitar conflito entre abas
   useEffect(() => {
+    let timeoutId: NodeJS.Timeout;
+    
     if (user) {
       user.getIdToken().then((token) => {
         const isSecure = window.location.protocol === "https:";
         document.cookie = `__session=${token}; path=/; SameSite=Strict${isSecure ? "; Secure" : ""}`;
       });
-    } else {
-      document.cookie = "__session=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
+    } else if (!loading) {
+      // Aguarda 500ms antes de deletar cookie (evita race condition entre abas)
+      timeoutId = setTimeout(() => {
+        document.cookie = "__session=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
+      }, 500);
     }
-  }, [user]);
+    
+    return () => {
+      if (timeoutId) clearTimeout(timeoutId);
+    };
+  }, [user, loading]);
 
   // Fecha sidebar mobile ao redimensionar para desktop
   useEffect(() => {
