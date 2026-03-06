@@ -89,6 +89,8 @@ function EventDetailPanel({ agendamento, pacienteNome, pacienteTelefone, terapeu
     window.open(whatsappUrl, "_blank");
   };
 
+  const linkTerapeuta = `/sala?sala=${agendamento.linkSala}`;
+
   return (
     <div className="w-72 flex-shrink-0 border-l border-slate-100 bg-white flex flex-col">
       <div className="p-4 border-b border-slate-100 flex items-center justify-between">
@@ -152,7 +154,7 @@ function EventDetailPanel({ agendamento, pacienteNome, pacienteTelefone, terapeu
             </button>
           </div>
           <a
-            href={`/sessao?sala=${agendamento.linkSala}`}
+            href={linkTerapeuta}
             target="_blank"
             rel="noopener noreferrer"
             className="w-full px-3 py-2 rounded-xl bg-primary-600 text-white text-sm font-semibold hover:bg-primary-700 transition-colors flex items-center justify-center gap-2"

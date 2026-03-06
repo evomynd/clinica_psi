@@ -31,7 +31,7 @@ export default function SalaPage() {
 
   // Busca agendamento pelo linkSala
   useEffect(() => {
-    if (!linkSala || !user) return;
+    if (!linkSala) return;
 
     async function buscarAgendamento() {
       try {
@@ -72,7 +72,7 @@ export default function SalaPage() {
     }
 
     buscarAgendamento();
-  }, [linkSala, user]);
+  }, [linkSala]);
 
   // Inicializa Jitsi quando agendamento carregado
   useEffect(() => {

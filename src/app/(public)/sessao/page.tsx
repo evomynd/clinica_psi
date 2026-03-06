@@ -76,11 +76,18 @@ function SessaoPageInner() {
 
   // Depois de carregado: decide se precisa pedir nome (visitante não logado)
   useEffect(() => {
-    if (loading || !agendamento) return;
-    if (!user) {
-      setAguardandoNome(true); // paciente não logado → pede nome
+    if (loading || authLoading || !agendamento) return;
+
+    const isTherapist = !!user && agendamento.userId === user.uid;
+
+    if (isTherapist) {
+      setAguardandoNome(false);
+      setEntrou(true);
+      return;
     }
-  }, [loading, agendamento, user]);
+
+    setAguardandoNome(!user); // visitante não logado → pede nome
+  }, [loading, authLoading, agendamento, user]);
 
   // Inicializa Jitsi quando entrou=true
   useEffect(() => {
