@@ -89,7 +89,7 @@ function EventDetailPanel({ agendamento, pacienteNome, pacienteTelefone, terapeu
     window.open(whatsappUrl, "_blank");
   };
 
-  const linkTerapeuta = `/sala?sala=${agendamento.linkSala}`;
+  const linkTerapeuta = `${window.location.origin}/sessao?sala=${agendamento.linkSala}`;
 
   return (
     <div className="w-72 flex-shrink-0 border-l border-slate-100 bg-white flex flex-col">
