@@ -52,3 +52,62 @@ export function hashCPF(cpf: string): string {
   const stripped = cpf.replace(/\D/g, "");
   return CryptoJS.SHA256(APP_SECRET + stripped).toString();
 }
+
+// ─── Criptografia de objeto completo (para dados do paciente) ─────────────────
+export function encryptObject<T>(obj: T, uid: string): { data: string; iv: string } {
+  const json = JSON.stringify(obj);
+  const { ciphertext, iv } = encryptText(json, uid);
+  return { data: ciphertext, iv };
+}
+
+export function decryptObject<T>(data: string, iv: string, uid: string): T | null {
+  try {
+    const json = decryptText(data, iv, uid);
+    if (!json || json === "[Erro ao descriptografar]") return null;
+    return JSON.parse(json) as T;
+  } catch {
+    return null;
+  }
+}
+
+// ─── Tipos para dados sensíveis do paciente ───────────────────────────────────
+export interface DadosSensiveisPaciente {
+  nomeCompleto: string;
+  email: string;
+  telefone: string;
+  cpf: string | null;
+  endereco: {
+    logradouro: string;
+    numero: string;
+    complemento?: string;
+    bairro: string;
+    cidade: string;
+    estado: string;
+    cep: string;
+  };
+  contatosEmergencia: Array<{
+    nome: string;
+    telefone: string;
+    relacao: string;
+  }>;
+  valorSessaoPadrao: number | null;
+  observacoesInternas: string | null;
+}
+
+// ─── Criptografa dados do paciente ────────────────────────────────────────────
+export function encryptPatientData(
+  dados: DadosSensiveisPaciente,
+  uid: string
+): { dadosCriptografados: string; dadosIV: string } {
+  const { data, iv } = encryptObject(dados, uid);
+  return { dadosCriptografados: data, dadosIV: iv };
+}
+
+// ─── Descriptografa dados do paciente ─────────────────────────────────────────
+export function decryptPatientData(
+  dadosCriptografados: string,
+  dadosIV: string,
+  uid: string
+): DadosSensiveisPaciente | null {
+  return decryptObject<DadosSensiveisPaciente>(dadosCriptografados, dadosIV, uid);
+}

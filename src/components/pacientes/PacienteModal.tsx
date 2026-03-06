@@ -180,6 +180,7 @@ export function PacienteModal({ open, paciente, onClose, onSuccess }: PacienteMo
 
       // Valida CPF se fornecido
       let cpfHash: string | null = null;
+      let cpfOriginal: string | null = null;
       if (data.cpf && data.cpf.replace(/\D/g, "").length > 0) {
         const cpfClean = data.cpf.replace(/\D/g, "");
         if (!isValidCPF(cpfClean)) {
@@ -188,6 +189,7 @@ export function PacienteModal({ open, paciente, onClose, onSuccess }: PacienteMo
           return;
         }
         cpfHash = hashCPF(cpfClean);
+        cpfOriginal = cpfClean;
       }
 
       const payload: Omit<PacienteFirestore, "id" | "createdAt" | "updatedAt"> = {
@@ -197,6 +199,7 @@ export function PacienteModal({ open, paciente, onClose, onSuccess }: PacienteMo
         email:         (data.email ?? "").trim(),
         telefone:      data.telefone.replace(/\D/g, ""),
         dataNascimento: dtNasc,
+        cpf:           isEdit && !data.cpf ? (paciente?.cpf ?? null) : cpfOriginal,
         cpfHash:       isEdit && !data.cpf ? (paciente?.cpfHash ?? null) : cpfHash,
         endereco: {
           logradouro:  data.logradouro  ?? "",

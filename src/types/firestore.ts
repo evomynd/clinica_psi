@@ -96,19 +96,58 @@ export interface Endereco {
   cep: string;
 }
 
-export interface PacienteFirestore {
+// Tipo usado no Firestore (dados sensíveis criptografados)
+export interface PacienteFirestoreEncrypted {
   id?: string;
-  userId: string;             // Psicólogo responsável
+  userId: string;
   clinicaId: string;
 
-  // Dados pessoais
+  // Dados criptografados (armazenados como string + IV)
+  dadosCriptografados: string;
+  dadosIV: string;
+
+  // Dados públicos não-sensíveis
+  dataNascimento: Timestamp;
+  cpfHash: string | null;
+
+  // Status legal/LGPD
+  consentimentoTCLE: ConsentimentoTCLE;
+  tcleUrl: string | null;
+  tcleToken: string | null;
+  tcleTokenExpiraEm: Timestamp | null;
+  contratoAssinado: boolean;
+  contratoUrl: string | null;
+  contratoToken: string | null;
+  contratoTokenExpiraEm: Timestamp | null;
+  contratoDataAssinatura: Timestamp | null;
+
+  // Configurações não-sensíveis
+  duracaoSessaoPadrao: number;
+  formaPagamentoPadrao: "pix" | "cartao" | "dinheiro" | "transferencia" | null;
+  modalidadePadrao: "presencial" | "online" | null;
+  frequenciaPadrao: "semanal" | "quinzenal" | null;
+
+  // Metadados
+  ativo: boolean;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
+
+// Tipo usado no cliente (dados descriptografados para uso na aplicação)
+export interface PacienteFirestore {
+  id?: string;
+  userId: string;
+  clinicaId: string;
+
+  // Dados pessoais (descriptografados)
   nomeCompleto: string;
   email: string;
   telefone: string;
   dataNascimento: Timestamp;
-  cpfHash: string | null;     // CPF encriptado no cliente
+  cpfHash: string | null;
+  cpf: string | null; // Mantido para compatibilidade
 
-  // Localização e emergência
+  // Localização e emergência (descriptografados)
   endereco: Endereco;
   contatosEmergencia: ContatoEmergencia[];
 
@@ -123,8 +162,8 @@ export interface PacienteFirestore {
   contratoTokenExpiraEm: Timestamp | null;
   contratoDataAssinatura: Timestamp | null;
 
-  // Dados de atendimento (padrões personalizados por paciente)
-  duracaoSessaoPadrao: number;  // minutos
+  // Dados de atendimento
+  duracaoSessaoPadrao: number;
   valorSessaoPadrao: number | null;
   formaPagamentoPadrao: "pix" | "cartao" | "dinheiro" | "transferencia" | null;
   modalidadePadrao: "presencial" | "online" | null;

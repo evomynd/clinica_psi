@@ -22,6 +22,7 @@ import { COLLECTIONS } from "./collections";
 import type {
   UserFirestore,
   PacienteFirestore,
+  PacienteFirestoreEncrypted,
   ObservacaoPacienteFirestore,
   AgendamentoFirestore,
   DisponibilidadeFirestore,
@@ -29,6 +30,102 @@ import type {
   TarefaFirestore,
   Pagamento,
 } from "@/types/firestore";
+import {
+  encryptPatientData,
+  decryptPatientData,
+  type DadosSensiveisPaciente,
+} from "@/lib/encryption";
+
+// ─── Criptografia de pacientes ───────────────────────────────────────────────
+
+function encryptPatient(
+  paciente: Omit<PacienteFirestore, "id" | "createdAt" | "updatedAt">,
+  userId: string
+): Omit<PacienteFirestoreEncrypted, "id" | "createdAt" | "updatedAt"> {
+  const dadosSensiveis: DadosSensiveisPaciente = {
+    nomeCompleto: paciente.nomeCompleto,
+    email: paciente.email,
+    telefone: paciente.telefone,
+    cpf: paciente.cpf,
+    endereco: paciente.endereco,
+    contatosEmergencia: paciente.contatosEmergencia,
+    valorSessaoPadrao: paciente.valorSessaoPadrao,
+    observacoesInternas: paciente.observacoesInternas,
+  };
+
+  const { dadosCriptografados, dadosIV } = encryptPatientData(dadosSensiveis, userId);
+
+  return {
+    userId: paciente.userId,
+    clinicaId: paciente.clinicaId,
+    dadosCriptografados,
+    dadosIV,
+    dataNascimento: paciente.dataNascimento,
+    cpfHash: paciente.cpfHash,
+    consentimentoTCLE: paciente.consentimentoTCLE,
+    tcleUrl: paciente.tcleUrl,
+    tcleToken: paciente.tcleToken,
+    tcleTokenExpiraEm: paciente.tcleTokenExpiraEm,
+    contratoAssinado: paciente.contratoAssinado,
+    contratoUrl: paciente.contratoUrl,
+    contratoToken: paciente.contratoToken,
+    contratoTokenExpiraEm: paciente.contratoTokenExpiraEm,
+    contratoDataAssinatura: paciente.contratoDataAssinatura,
+    duracaoSessaoPadrao: paciente.duracaoSessaoPadrao,
+    formaPagamentoPadrao: paciente.formaPagamentoPadrao,
+    modalidadePadrao: paciente.modalidadePadrao,
+    frequenciaPadrao: paciente.frequenciaPadrao,
+    ativo: paciente.ativo,
+  };
+}
+
+function decryptPatient(
+  encrypted: PacienteFirestoreEncrypted & { id?: string },
+  userId: string
+): PacienteFirestore | null {
+  const dadosSensiveis = decryptPatientData(
+    encrypted.dadosCriptografados,
+    encrypted.dadosIV,
+    userId
+  );
+
+  if (!dadosSensiveis) {
+    console.error("[Criptografia] Erro ao descriptografar paciente:", encrypted.id);
+    return null;
+  }
+
+  return {
+    id: encrypted.id,
+    userId: encrypted.userId,
+    clinicaId: encrypted.clinicaId,
+    nomeCompleto: dadosSensiveis.nomeCompleto,
+    email: dadosSensiveis.email,
+    telefone: dadosSensiveis.telefone,
+    cpf: dadosSensiveis.cpf,
+    dataNascimento: encrypted.dataNascimento,
+    cpfHash: encrypted.cpfHash,
+    endereco: dadosSensiveis.endereco,
+    contatosEmergencia: dadosSensiveis.contatosEmergencia,
+    consentimentoTCLE: encrypted.consentimentoTCLE,
+    tcleUrl: encrypted.tcleUrl,
+    tcleToken: encrypted.tcleToken,
+    tcleTokenExpiraEm: encrypted.tcleTokenExpiraEm,
+    contratoAssinado: encrypted.contratoAssinado,
+    contratoUrl: encrypted.contratoUrl,
+    contratoToken: encrypted.contratoToken,
+    contratoTokenExpiraEm: encrypted.contratoTokenExpiraEm,
+    contratoDataAssinatura: encrypted.contratoDataAssinatura,
+    duracaoSessaoPadrao: encrypted.duracaoSessaoPadrao,
+    valorSessaoPadrao: dadosSensiveis.valorSessaoPadrao,
+    formaPagamentoPadrao: encrypted.formaPagamentoPadrao,
+    modalidadePadrao: encrypted.modalidadePadrao,
+    frequenciaPadrao: encrypted.frequenciaPadrao,
+    ativo: encrypted.ativo,
+    observacoesInternas: dadosSensiveis.observacoesInternas,
+    createdAt: encrypted.createdAt,
+    updatedAt: encrypted.updatedAt,
+  };
+}
 
 // ─── Auditoria LGPD ──────────────────────────────────────────────────────────
 export async function registrarAuditoria(
@@ -103,8 +200,11 @@ export async function exportarDadosLGPD(uid: string): Promise<Record<string, unk
 export async function criarPaciente(
   data: Omit<PacienteFirestore, "id" | "createdAt" | "updatedAt">
 ): Promise<string> {
+  // Criptografa dados sensíveis antes de salvar
+  const encrypted = encryptPatient(data, data.userId);
+  
   const ref = await addDoc(collection(db, COLLECTIONS.PACIENTES), {
-    ...data,
+    ...encrypted,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });
@@ -115,7 +215,6 @@ export async function buscarPacientesPorPsicologo(
   userId: string,
   filters: { ativo?: boolean } = {}
 ): Promise<PacienteFirestore[]> {
-  // orderBy removido para evitar índice composto — ordenação feita no cliente
   const constraints: QueryConstraint[] = [
     where("userId", "==", userId),
   ];
@@ -124,22 +223,48 @@ export async function buscarPacientesPorPsicologo(
   }
   const q = query(collection(db, COLLECTIONS.PACIENTES), ...constraints);
   const snap = await getDocs(q);
-  const docs = snap.docs.map((d) => ({ id: d.id, ...d.data() } as PacienteFirestore));
-  return docs.sort((a, b) => a.nomeCompleto.localeCompare(b.nomeCompleto, "pt-BR"));
+  
+  // Descriptografa cada paciente
+  const pacientes: PacienteFirestore[] = [];
+  for (const doc of snap.docs) {
+    const encrypted = { id: doc.id, ...doc.data() } as PacienteFirestoreEncrypted;
+    const decrypted = decryptPatient(encrypted, userId);
+    if (decrypted) {
+      pacientes.push(decrypted);
+    }
+  }
+  
+  return pacientes.sort((a, b) => a.nomeCompleto.localeCompare(b.nomeCompleto, "pt-BR"));
 }
 
 export async function buscarPacientePorId(id: string): Promise<PacienteFirestore | null> {
   const snap = await getDoc(doc(db, COLLECTIONS.PACIENTES, id));
   if (!snap.exists()) return null;
-  return { id: snap.id, ...snap.data() } as PacienteFirestore;
+  
+  const encrypted = { id: snap.id, ...snap.data() } as PacienteFirestoreEncrypted;
+  return decryptPatient(encrypted, encrypted.userId);
 }
 
 export async function atualizarPaciente(
   id: string,
   data: Partial<Omit<PacienteFirestore, "id" | "createdAt">>
 ): Promise<void> {
+  // Se houver dados sensíveis na atualização, precisa re-criptografar tudo
+  // Busca o paciente atual para pegar o userId e juntar com as mudanças
+  const pacienteAtual = await buscarPacientePorId(id);
+  if (!pacienteAtual) throw new Error("Paciente não encontrado");
+  
+  // Mescla dados atuais com as mudanças
+  const pacienteMerged = { ...pacienteAtual, ...data };
+  
+  // Re-criptografa tudo
+  const encrypted = encryptPatient(
+    pacienteMerged as Omit<PacienteFirestore, "id" | "createdAt" | "updatedAt">,
+    pacienteMerged.userId
+  );
+  
   await updateDoc(doc(db, COLLECTIONS.PACIENTES, id), {
-    ...data,
+    ...encrypted,
     updatedAt: serverTimestamp(),
   });
 }
