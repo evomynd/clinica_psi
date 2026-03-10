@@ -13,7 +13,7 @@ const PROTECTED_ROUTES = [
 // Rotas exclusivamente públicas (redireciona para dashboard se já logado)
 const PUBLIC_ONLY_ROUTES = ["/login", "/registro", "/esqueci-senha"];
 
-export function proxy(request: NextRequest) {
+export default function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Verifica o cookie de sessão Firebase (setado pelo AuthProvider pós-login)
